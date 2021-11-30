@@ -27,6 +27,12 @@
 #include <unistd.h>
 #include <time.h>
 
+/** DEFINES **/
+#define CTRL_FIN ( 1 << 0 )
+#define CTRL_SYN ( 1 << 1 )
+#define CTRL_RST ( 1 << 2 )
+#define CTRL_ACK ( 1 << 4 )
+
 microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 {
 	microtcp_sock_t sock;
@@ -60,11 +66,44 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
                  socklen_t address_len)
 {
-	char buff[256];
+	char buff[MICROTCP_MSS];
 	int sockfd;
+
+	microtcp_header_t tcphr;
+	microtcp_header_t tcphs;
+
+
 	/** TODO: 3-way-handshake */
 	/** TODO: recvbuf setup */
-	check(recvfrom(sockfd, buff, 256, 0, address, &address_len));
+	sockfd = socket->sd;
+	check(recvfrom(sockfd, buff, MICROTCP_MSS + 40U, 0, address, &address_len));
+	memcpy(&tcphr, buff, sizeof(tcphr));
+
+	tcphr.seq_number = ntohl(tcphr.seq_number);
+	tcphr.ack_number = ntohl(tcphr.ack_number);
+	tcphr.control    = ntohs(tcphr.control);
+	tcphr.window     = ntohs(tcphr.window);
+	tcphr.data_len   = ntohs(tcphr.data_len);
+
+	printf("header.control = %x\n", tcphr.control);
+
+	if ( tcphr.control & CTRL_SYN ) {
+
+		printf("CTRL-SYN\n");
+		socket->ack_number = tcphr.seq_number + 1U;
+		++socket->packets_received;
+		++socket->bytes_received;
+
+		/** TODO: cwnd and receive buffer */
+
+		tcphs.seq_number = socket->seq_number;
+		tcphs.ack_number = socket->ack_number;
+		tcphs.control    = CTRL_ACK | CTRL_SYN;
+	}
+
+	/** TODO: implement checksum() */
+
+	return EXIT_SUCCESS;
 }
 
 int microtcp_shutdown(microtcp_sock_t * socket, int how)
