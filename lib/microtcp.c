@@ -46,6 +46,8 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 int microtcp_bind(microtcp_sock_t * socket, const struct sockaddr * address,
                socklen_t address_len)
 {
+	socket->addr.sin_addr.s_addr=address;
+
 	check(bind(socket->sd, address, address_len));
 	return EXIT_SUCCESS;
 }
