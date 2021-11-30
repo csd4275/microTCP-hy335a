@@ -56,6 +56,10 @@ int microtcp_accept(microtcp_sock_t *socket, struct sockaddr *address,
 	/** TODO: recvbuf setup */
 
 	//test
+	int i;
+	int j;
+
+	//lol
 }
 
 int microtcp_shutdown(microtcp_sock_t *socket, int how)
