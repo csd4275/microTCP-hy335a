@@ -23,6 +23,7 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/ip.h>
 #include <stdint.h>
 
 /*
@@ -82,6 +83,8 @@ typedef struct
   uint64_t bytes_send;
   uint64_t bytes_received;
   uint64_t bytes_lost;
+
+  struct sockaddr_in addr;
 } microtcp_sock_t;
 
 
