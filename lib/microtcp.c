@@ -42,7 +42,8 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 	memset(&sock, 0, sizeof(sock));
 	srand(time(NULL) + getpid());
 
-	sock.sd = sockfd;
+	sock.sd         = sockfd;
+	sock.state      = INVALID;
 	sock.seq_number = rand();
 
 	return sock;
@@ -86,10 +87,11 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
                  socklen_t address_len)
 {
+	char buff[256];
+	int sockfd;
 	/** TODO: 3-way-handshake */
 	/** TODO: recvbuf setup */
-
-
+	check(recvfrom(sockfd, buff, 256, 0, address, &address_len));
 }
 
 int microtcp_shutdown(microtcp_sock_t * socket, int how)
