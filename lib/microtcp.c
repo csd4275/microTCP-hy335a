@@ -108,7 +108,7 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 	tcphr.ack_number = ntohl(tcphr.ack_number);
 	tcphr.control    = ntohs(tcphr.control);
 	tcphr.window     = ntohs(tcphr.window);
-	tcphr.data_len   = ntohs(tcphr.data_len);
+	// tcphr.data_len   = ntohs(tcphr.data_len);
 
 	printf("header.control = %x\n", tcphr.control);
 
