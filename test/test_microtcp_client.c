@@ -33,7 +33,7 @@ main(int argc, char **argv)
 {
     microtcp_sock_t csock;
     struct sockaddr_in addr;
-    uint16_t port=argv[2];
+    uint16_t port=atoi(argv[2]);
 
 
     client_check_main_input(argc, argv);
@@ -43,7 +43,6 @@ main(int argc, char **argv)
     addr.sin_port        = htons(port);
     addr.sin_family      = AF_INET;
 
-    microtcp_bind(&csock, (struct sockaddr *)(&addr), sizeof(addr));
     printf("Connecting to server %d...\n",addr);
     microtcp_connect(&csock,(struct sockaddr*)&addr,sizeof(addr));
 

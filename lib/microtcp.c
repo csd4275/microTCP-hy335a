@@ -52,6 +52,8 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 	sock.cwnd       = MICROTCP_INIT_CWND;
 	sock.ssthresh   = MICROTCP_INIT_SSTHRESH;
 
+	/** TODO: on_exit() -> free resources */
+
 	return sock;
 }
 
@@ -134,6 +136,10 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 		tcphs.control    = CTRL_ACK | CTRL_SYN;
 	}
 
+	printf("ACKed\n");
+	socket->state = ESTABLISHED;
+
+	/** TODO: implement checksum() in every recvfrom() */
 	/** TODO: implement checksum() */
 
 	return EXIT_SUCCESS;
