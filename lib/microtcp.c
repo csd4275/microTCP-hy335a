@@ -95,7 +95,7 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 		return socket->sd;
 	}
 
-	return -1;
+	return -(EXIT_FAILURE);
 }
 
 int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
