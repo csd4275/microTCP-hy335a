@@ -26,11 +26,11 @@
 
 #include "../lib/microtcp.h"
 #include "../utils/errorc.h"
+#include "connections.h"
 
 #include <netinet/ip.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <connections.h>
 
 void check_main_input(int argc, char ** argv);
 

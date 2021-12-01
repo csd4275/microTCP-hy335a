@@ -60,7 +60,8 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 int microtcp_bind(microtcp_sock_t * socket, const struct sockaddr * address,
                socklen_t address_len)
 {
-	memccpy((void*)&socket->addr,(void*)address,'\0',sizeof(address));
+	// memccpy((void*)&socket->addr,(void*)address,'\0',sizeof(address));
+	memcpy(&socket->addr, address, sizeof(address));
 
 	check(bind(socket->sd, address, address_len));
 	return EXIT_SUCCESS;
@@ -71,26 +72,25 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 {
 	microtcp_header_t estab_header, synack_recv_header, ack_estab_header;
 	
-	estab_header.seq_number=socket->seq_number;
-	estab_header.control= CTRL_SYN;
+	estab_header.seq_number = htonl(socket->seq_number);
+	estab_header.control = htons(CTRL_SYN);
 
-	printf("SYN sent to %d\n",address);
-	check(sendto(socket->sd,(void*)&estab_header,sizeof(estab_header),NULL,(struct sockaddr *)&socket->addr,sizeof(socket->addr)));
+	check(sendto(socket->sd,(void*)&estab_header,sizeof(estab_header),0,(struct sockaddr *)(address),sizeof(*address)));
 	socket->seq_number+=1;
 
-	check(recvfrom(socket->sd,(void*)&synack_recv_header,sizeof(synack_recv_header),NULL,address,address_len));
-	printf("Recieved a packet from %d",address);
+	/** TODO: security_check() */
+	check(recvfrom(socket->sd,(void*)&synack_recv_header,sizeof(synack_recv_header),0,NULL,NULL));
 
-	if(synack_recv_header.control & (CTRL_SYN & CTRL_ACK)){
-		printf(" and it is a SYN-ACK packet\n");
-		estab_header.seq_number=socket->seq_number;
-		estab_header.control= CTRL_ACK;
+	printf("control = %d\n", ntohs(synack_recv_header.control));
+	if ( ntohs(synack_recv_header.control) == (CTRL_SYN | CTRL_ACK) ) {
 
-		printf("ACK sent to %d\n",address);
-		check(sendto(socket->sd,(void*)&estab_header,sizeof(ack_estab_header),NULL,(struct sockaddr *)&socket->addr,sizeof(socket->addr)));
+		printf("SYN-ACK packet\n");
+		estab_header.seq_number = htonl(socket->seq_number);
+		estab_header.control = htons(CTRL_ACK);
+
+		check(sendto(socket->sd,(void*)&estab_header,sizeof(ack_estab_header),0,(struct sockaddr *)(address),sizeof(*address)));
 		socket->seq_number+=1;
 	
-		print("Connection with %d established!\n",address);
 		socket->state=ESTABLISHED;
 		return socket->sd;
 	}
@@ -101,39 +101,36 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
                  socklen_t address_len)
 {
-	char buff[MICROTCP_MSS];
-	int sockfd;
-
-	microtcp_header_t tcphr;
-	microtcp_header_t tcphs;
+	microtcp_header_t tcph;
 
 
 	/** TODO: 3-way-handshake */
 	/** TODO: recvbuf setup */
-	sockfd = socket->sd;
-	check(recvfrom(sockfd, buff, MICROTCP_MSS + 40U, 0, address, &address_len));
-	memcpy(&tcphr, buff, sizeof(tcphr));
 
-	tcphr.seq_number = ntohl(tcphr.seq_number);
-	tcphr.ack_number = ntohl(tcphr.ack_number);
-	tcphr.control    = ntohs(tcphr.control);
-	tcphr.window     = ntohs(tcphr.window);
-	// tcphr.data_len   = ntohs(tcphr.data_len);
+	check(recvfrom(socket->sd, &tcph, sizeof(tcph), 0, address, &address_len));
 
-	printf("header.control = %x\n", tcphr.control);
+	tcph.seq_number = ntohl(tcph.seq_number);
+	tcph.ack_number = ntohl(tcph.ack_number);
+	tcph.control    = ntohs(tcph.control);
+	tcph.window     = ntohs(tcph.window);
+	tcph.data_len   = ntohs(tcph.data_len);
 
-	if ( tcphr.control & CTRL_SYN ) {
+	printf("header.control = %x\n", tcph.control);
+
+	if ( tcph.control & CTRL_SYN ) {
 
 		printf("CTRL-SYN\n");
-		socket->ack_number = tcphr.seq_number + 1U;
+		socket->ack_number = tcph.seq_number + 1U;
 		++socket->packets_received;
 		++socket->bytes_received;
 
 		/** TODO: cwnd and receive buffer */
 
-		tcphs.seq_number = socket->seq_number;
-		tcphs.ack_number = socket->ack_number;
-		tcphs.control    = CTRL_ACK | CTRL_SYN;
+		tcph.seq_number = htonl(socket->seq_number);
+		tcph.ack_number = htonl(socket->ack_number);
+		tcph.control    = htons(CTRL_ACK | CTRL_SYN);
+
+		check(sendto(socket->sd, &tcph, sizeof(tcph), 0, address, address_len));
 	}
 
 	printf("ACKed\n");
