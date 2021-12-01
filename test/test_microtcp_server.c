@@ -63,20 +63,3 @@ int main(int argc, char ** argv)
 
     return 0;
 }
-
-
-void check_main_input(int argc, char ** argv) {
-
-    uint16_t port;
-
-    if ( argc < 2 ) {
-
-        printf(STR_ERROR " unspecified port number\n");
-        printf("./test_microtcp_server <port-number>\n");
-        exit(EXIT_FAILURE);
-    }
-
-    /** TODO: check if input is a valid number and < 2^16 - 1 */
-}
-
-
