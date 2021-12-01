@@ -23,8 +23,32 @@
  * This file is already inserted at the build system.
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <connections.h>
+#include <../lib/microtcp.h>
+
 int
 main(int argc, char **argv)
 {
+    microtcp_sock_t csock;
+    struct sockaddr_in addr;
+    uint16_t port=argv[2];
 
+
+    client_check_main_input(argc, argv);
+    csock = microtcp_socket(AF_INET, SOCK_DGRAM, 0);
+
+    addr.sin_addr.s_addr = htonl(argv[1]);
+    addr.sin_port        = htons(port);
+    addr.sin_family      = AF_INET;
+
+    microtcp_bind(&csock, (struct sockaddr *)(&addr), sizeof(addr));
+    printf("Connecting to server %d...\n",addr);
+    microtcp_connect(&csock,(struct sockaddr*)&addr,sizeof(addr));
+
+    printf("Sucessfully connected to server!\n");
+    close(csock.sd);
+
+    return 0;
 }

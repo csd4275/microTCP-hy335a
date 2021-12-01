@@ -29,8 +29,7 @@
 #include <netinet/ip.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#define STR_ERROR "\033[1;31mERROR\033[93m:\033[0m"
+#include <connections.h>
 
 void check_main_input(int argc, char ** argv);
 
@@ -41,7 +40,7 @@ int main(int argc, char ** argv)
     uint16_t port;
 
 
-    check_main_input(argc, argv);
+    server_check_main_input(argc, argv);
     printf("initializing server...\n");
     ssock = microtcp_socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -53,14 +52,4 @@ int main(int argc, char ** argv)
     close(ssock.sd);
 
     return 0;
-}
-
-void check_main_input(int argc, char ** argv) {
-
-    if ( argc < 2 ) {
-
-        printf(STR_ERROR " unspecified port number\n");
-        printf("./test_microtcp_server <port-number>\n");
-        exit(EXIT_FAILURE);
-    }
 }
