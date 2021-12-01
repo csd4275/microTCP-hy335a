@@ -50,6 +50,8 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 	sock.sd         = sockfd;
 	sock.state      = INVALID;
 	sock.seq_number = rand();
+	sock.cwnd       = MICROTCP_INIT_CWND;
+	sock.ssthresh   = MICROTCP_INIT_SSTHRESH;
 
 	return sock;
 }
@@ -77,7 +79,7 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 
 	check(recvfrom(socket->sd,(void*)&synack_recv_header,sizeof(synack_recv_header),NULL,address,address_len));
 
-	if(synack_recv_header){
+	if(synack_recv_header.control & (CTRL_SYN & CTRL_ACK)){
 
 		estab_header.seq_number=socket->seq_number;
 		estab_header.control= CTRL_ACK;
@@ -85,10 +87,11 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 		check(sendto(socket->sd,(void*)&estab_header,sizeof(ack_estab_header),NULL,(struct sockaddr *)&socket->addr,sizeof(socket->addr)));
 		socket->seq_number+=sizeof(ack_estab_header);
 	
+		socket->state=ESTABLISHED;
+		return socket->sd;
 	}
 
-	socket->state=ESTABLISHED;
-	return socket->sd;
+	return
 }
 
 int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
