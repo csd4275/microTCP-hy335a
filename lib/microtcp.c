@@ -25,12 +25,16 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include <time.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <arpa/inet.h>
 
 
 /** DEFINES **/
+#define SIZE_TCPH sizeof(microtcp_header_t)
+
 #define CTRL_FIN ( 1 << 0 )
 #define CTRL_SYN ( 1 << 1 )
 #define CTRL_RST ( 1 << 2 )
@@ -91,42 +95,72 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
                  socklen_t address_len)
 {
-	char buff[MICROTCP_MSS];
-	int sockfd;
+	microtcp_header_t tcph;
 
-	microtcp_header_t tcphr;
-	microtcp_header_t tcphs;
 
+	if ( !socket || !address ) {
+
+		errno = EINVAL;
+		return -(EXIT_FAILURE);
+	}
+
+	if ( socket->state == ESTABLISHED ) {
+
+		errno = EISCONN;
+		return -(EXIT_FAILURE);
+	}
 
 	/** TODO: 3-way-handshake */
 	/** TODO: recvbuf setup */
-	sockfd = socket->sd;
-	check(recvfrom(sockfd, buff, MICROTCP_MSS + 40U, 0, address, &address_len));
-	memcpy(&tcphr, buff, sizeof(tcphr));
 
-	tcphr.seq_number = ntohl(tcphr.seq_number);
-	tcphr.ack_number = ntohl(tcphr.ack_number);
-	tcphr.control    = ntohs(tcphr.control);
-	tcphr.window     = ntohs(tcphr.window);
-	// tcphr.data_len   = ntohs(tcphr.data_len);
+	check(recvfrom(socket->sd, &tcph, SIZE_TCPH, 0, address, &address_len));
 
-	printf("header.control = %x\n", tcphr.control);
+	tcph.seq_number = ntohl(tcph.seq_number);
+	tcph.ack_number = ntohl(tcph.ack_number);
+	tcph.control    = ntohs(tcph.control);
+	tcph.window     = ntohs(tcph.window);
+	tcph.data_len   = ntohs(tcph.data_len);
 
-	if ( tcphr.control & CTRL_SYN ) {
+	printf("header.control = %x\n", tcph.control);
 
-		printf("CTRL-SYN\n");
-		socket->ack_number = tcphr.seq_number + 1U;
-		++socket->packets_received;
-		++socket->bytes_received;
+	if ( !(tcph.control & CTRL_SYN) ) {
 
-		/** TODO: cwnd and receive buffer */
-
-		tcphs.seq_number = socket->seq_number;
-		tcphs.ack_number = socket->ack_number;
-		tcphs.control    = CTRL_ACK | CTRL_SYN;
+		errno = ECONNABORTED;
+		return -(EXIT_FAILURE);
 	}
 
-	/** TODO: implement checksum() */
+	printf("CTRL-SYN\n");
+	socket->ack_number += tcph.data_len;
+	++socket->packets_received;
+	++socket->bytes_received;
+
+	/** TODO: cwnd and receive buffer */
+
+	tcph.seq_number = htonl(socket->seq_number);
+	tcph.ack_number = htonl(socket->ack_number);
+	tcph.control    = htons(CTRL_ACK | CTRL_SYN);
+	tcph.data_len   = htonl(1U);
+
+	check(sendto(socket->sd, &tcph, SIZE_TCPH, 0, address, &address_len));
+	check(recvfrom(socket->sd, &tcph, SIZE_TCPH, 0, address, &address_len));
+
+	tcph.seq_number = ntohl(tcph.seq_number);
+	tcph.ack_number = ntohl(tcph.ack_number);
+	tcph.control    = ntohs(tcph.control);
+	tcph.window     = ntohs(tcph.window);
+	tcph.data_len   = ntohs(tcph.data_len);
+
+	if ( !(tcph.control & CTRL_ACK) ) {
+
+		/** TODO: while ( !ack_not_recvd ); */
+
+		printf("no ACK recvd!\n");
+		return -(EXIT_FAILURE);
+	}
+
+	printf("ACKed\n");
+
+	/** TODO: implement checksum() in every recvfrom() */
 
 	return EXIT_SUCCESS;
 }
