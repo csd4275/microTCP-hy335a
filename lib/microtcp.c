@@ -105,7 +105,6 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 	microtcp_header_t tcph;
 
 
-	/** TODO: 3-way-handshake */
 	/** TODO: recvbuf setup */
 
 	check(recvfrom(socket->sd, &tcph, sizeof(tcph), 0, address, &address_len));
