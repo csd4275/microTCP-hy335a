@@ -53,6 +53,8 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 	sock.sd         = sockfd;
 	sock.state      = INVALID;
 	sock.seq_number = rand();
+	sock.cwnd       = MICROTCP_INIT_CWND;
+	sock.ssthresh   = MICROTCP_INIT_SSTHRESH;
 
 	return sock;
 }
@@ -69,27 +71,30 @@ int microtcp_bind(microtcp_sock_t * socket, const struct sockaddr * address,
 int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
                   socklen_t address_len)
 {
-	microtcp_header_t estab_header;
+	microtcp_header_t estab_header, synack_recv_header, ack_estab_header, ;
+	
+	
 	estab_header.seq_number=socket->seq_number;
-	estab_header.control= SYN;
+	estab_header.control= CTRL_SYN;
 
 	check(sendto(socket->sd,(void*)&estab_header,sizeof(estab_header),NULL,(struct sockaddr *)&socket->addr,sizeof(socket->addr)));
 	socket->seq_number+=sizeof(estab_header);
 
+	check(recvfrom(socket->sd,(void*)&synack_recv_header,sizeof(synack_recv_header),NULL,address,address_len));
 
-	// recv(socket->sd,)
+	if(synack_recv_header.control & (CTRL_SYN & CTRL_ACK)){
 
+		estab_header.seq_number=socket->seq_number;
+		estab_header.control= CTRL_ACK;
 
+		check(sendto(socket->sd,(void*)&estab_header,sizeof(ack_estab_header),NULL,(struct sockaddr *)&socket->addr,sizeof(socket->addr)));
+		socket->seq_number+=sizeof(ack_estab_header);
+	
+		socket->state=ESTABLISHED;
+		return socket->sd;
+	}
 
-	microtcp_header_t ack_estab_header;
-	estab_header.seq_number=socket->seq_number;
-	estab_header.control= ACK;
-
-	check(sendto(socket->sd,(void*)&estab_header,sizeof(ack_estab_header),NULL,(struct sockaddr *)&socket->addr,sizeof(socket->addr)));
-	socket->seq_number+=sizeof(ack_estab_header);
-
-	socket->state=ESTABLISHED;
-	return socket->sd;
+	return
 }
 
 int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
