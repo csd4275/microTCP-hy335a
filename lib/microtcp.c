@@ -29,9 +29,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#define SYN 0b0000000000000010
-#define ACK	0b0000000000001000
-
 /** DEFINES **/
 #define CTRL_FIN ( 1 << 0 )
 #define CTRL_SYN ( 1 << 1 )
