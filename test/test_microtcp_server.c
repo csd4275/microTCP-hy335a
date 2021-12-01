@@ -25,6 +25,7 @@
 
 
 #include "../lib/microtcp.h"
+#include "../utils/errorc.h"
 
 #include <netinet/ip.h>
 #include <stdio.h>
@@ -43,14 +44,21 @@ int main(int argc, char ** argv)
 
     check_main_input(argc, argv);
     printf("initializing server...\n");
+
     ssock = microtcp_socket(AF_INET, SOCK_DGRAM, 0);
 
+    if ( ssock.sd > 0 )
+        printf("socket created\n");
+    else
+        exit(EXIT_FAILURE);
+
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr.sin_port        = htons(port);
+    addr.sin_port        = htons(atoi(argv[1]));
     addr.sin_family      = AF_INET;
 
-    microtcp_bind(&ssock, (struct sockaddr *)(&addr), sizeof(addr));
-    
+    check(microtcp_bind(&ssock, (struct sockaddr *)(&addr), sizeof(addr)));
+    check(microtcp_accept(&ssock, &addr, sizeof(addr)));
+
 
     close(ssock.sd);
 
@@ -59,10 +67,16 @@ int main(int argc, char ** argv)
 
 void check_main_input(int argc, char ** argv) {
 
+    uint16_t port;
+
     if ( argc < 2 ) {
 
         printf(STR_ERROR " unspecified port number\n");
         printf("./test_microtcp_server <port-number>\n");
         exit(EXIT_FAILURE);
     }
+
+    /** TODO: check if input is a valid number and < 2^16 - 1 */
 }
+
+

@@ -52,6 +52,8 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 	sock.cwnd       = MICROTCP_INIT_CWND;
 	sock.ssthresh   = MICROTCP_INIT_SSTHRESH;
 
+	/** TODO: on_exit() -> free resources */
+
 	return sock;
 }
 
