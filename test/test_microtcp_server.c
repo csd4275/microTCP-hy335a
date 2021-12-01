@@ -50,6 +50,8 @@ int main(int argc, char ** argv)
     addr.sin_family      = AF_INET;
 
     microtcp_bind(&ssock, (struct sockaddr *)(&addr), sizeof(addr));
+    
+
     close(ssock.sd);
 
     return 0;

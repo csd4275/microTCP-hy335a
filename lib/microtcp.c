@@ -164,6 +164,7 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 	}
 
 	printf("ACKed\n");
+	socket->state = ESTABLISHED;
 
 	/** TODO: implement checksum() in every recvfrom() */
 
