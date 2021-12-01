@@ -67,14 +67,14 @@ int microtcp_bind(microtcp_sock_t * socket, const struct sockaddr * address,
 int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
                   socklen_t address_len)
 {
-	microtcp_header_t estab_header, synack_recv_header, ack_estab_header, ;
+	microtcp_header_t estab_header, synack_recv_header, ack_estab_header;
 	
 	
 	estab_header.seq_number=socket->seq_number;
 	estab_header.control= CTRL_SYN;
 
 	check(sendto(socket->sd,(void*)&estab_header,sizeof(estab_header),NULL,(struct sockaddr *)&socket->addr,sizeof(socket->addr)));
-	socket->seq_number+=sizeof(estab_header);
+	socket->seq_number+=1;
 
 	check(recvfrom(socket->sd,(void*)&synack_recv_header,sizeof(synack_recv_header),NULL,address,address_len));
 
@@ -84,13 +84,13 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 		estab_header.control= CTRL_ACK;
 
 		check(sendto(socket->sd,(void*)&estab_header,sizeof(ack_estab_header),NULL,(struct sockaddr *)&socket->addr,sizeof(socket->addr)));
-		socket->seq_number+=sizeof(ack_estab_header);
+		socket->seq_number+=1;
 	
 		socket->state=ESTABLISHED;
 		return socket->sd;
 	}
 
-	return
+	return -1;
 }
 
 int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
