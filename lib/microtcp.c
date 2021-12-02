@@ -138,13 +138,51 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 
 	/** TODO: implement checksum() in every recvfrom() */
 	/** TODO: implement checksum() */
-
+	shutdown
 	return EXIT_SUCCESS;
 }
 
 int microtcp_shutdown(microtcp_sock_t * socket, int how)
-{
-	/* Your code here */
+{	
+	switch (how)
+	{
+	case 0: /* SHUT_RD */
+		/* code */
+		break;
+	case 1: /* SHUT_WR */
+		/* code */
+		break;
+	case 2: /* SHUT _RDWR */
+		/* code */
+		break;
+	
+	default:
+		break;
+	}
+
+
+
+
+
+
+
+
+	// microtcp_header_t fin_header, received_header;
+
+	// fin_header.seq_number=htonl(socket->seq_number);
+	// fin_header.control=htons(CTRL_FIN);
+
+	// check(sendto(socket->sd,fin_header,sizeof(fin_header),0,(struct sockaddr *)&socket->addr,sizeof(socket->addr)));
+	// printf("FIN packet sent to server\n");
+	
+	// printf("Waiting for ACK from the server\n");
+	// check(recvfrom(socket->sd,(void*)&received_header,sizeof(received_header),0,NULL,NULL));
+	// if(received_header.control == CTRL_ACK){
+	// 	printf("Received ACK from the server");
+
+		
+
+	// }
 }
 
 ssize_t microtcp_send(microtcp_sock_t * socket, const void *buffer, size_t length,
