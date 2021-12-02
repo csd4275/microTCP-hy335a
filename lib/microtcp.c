@@ -149,6 +149,7 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 	switch (how)
 	{
 	case 0: /* SHUT_RD */
+		print("SHUT_RD\n");
 		if(socket->state==ESTABLISHED){
 			socket->state=CLOSING_BY_PEER;
 		}else if(socket->state==CLOSING_BY_HOST){
@@ -160,13 +161,15 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 		microtcp_header_t ack_header;
 		ack_header.control = htons(CTRL_ACK);
 		ack_header.ack_number = htonl(socket->ack_number);
-
+		printf("Sending ACK\n");
 		check(sendto(socket->sd,(void*)&ack_header,sizeof(ack_header),0,(struct sockaddr*)&socket->addr.sin_addr,sizeof(socket->addr.sin_addr)));
 		
 		if(socket->state==CLOSING_BY_PEER){
+			printf("state is CBP mtcp_shut called (how == 1\n");
 			microtcp_shutdown(socket, 1);
 			return EXIT_SUCCESS;
 		}else if(socket->state==CLOSING_BY_HOST){
+			printf("state is CBH mtcp_shut called (how == 2\n");
 			microtcp_shutdown(socket,2);
 		}else{
 			return -(EXIT_FAILURE);
@@ -174,31 +177,39 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 
 		break;
 	case 1: /* SHUT_WR */
+		printf("SHUT_WR\n");
 		microtcp_header_t fin_ack, ack, fin_ack_recv;
 
 		fin_ack.seq_number = htonl(socket->seq_number);
 		fin_ack.ack_number = htonl(socket->ack_number);
 		fin_ack.control = htons(CTRL_FIN | CTRL_ACK);
 		/* Send FIN/ACK */
+		printf("Sending ACK\n");
 		check(sendto(socket->sd, (void*)&fin_ack, sizeof(fin_ack), 0, (struct sockaddr*)&socket->addr.sin_addr, sizeof(socket->addr.sin_addr)));
 		/* Receive ACK for previous FINACK */
+		printf("Waiting for response..\n");
 		check(recvfrom(socket->sd, (void*)&ack, sizeof(ack), 0, NULL, NULL));
 
 		ack.control = ntohs(ack.control);
 
 		/* Check if the received package is an ACK (and the correct ACK)*/
 		if(ack.control & CTRL_ACK) {
+			printf("Response is indeed ACK\n");
 			/** TODO: Check if ack is seq + 1 */
-			if(socket->state == ESTABLISHED)
+			if(socket->state == ESTABLISHED) {
+				printf("State is now CBH\n");
 				socket->state = CLOSING_BY_HOST;
-				
+			}
 			else if(socket->state == CLOSING_BY_PEER) {
-				shutdown(socket, 2);
+				printf("State is CBP so calling SHUT_RDWR\n");
+				microtcp_shutdown(socket, 2);
 			}
 		}
 
 		break;
 	case 2: /* SHUT _RDWR */
+		printf("SHUT_RDWR\n");
+		printf("Closing socket\n");
 		close(socket->sd);
 		socket->state = CLOSED;
 		break;
