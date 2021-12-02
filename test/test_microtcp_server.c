@@ -42,6 +42,7 @@ int main(int argc, char ** argv)
     microtcp_sock_t ssock;
     microtcp_header_t tcph;
 
+
     server_check_main_input(argc, argv);
     printf("initializing server...\n");
 

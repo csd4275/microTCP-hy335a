@@ -57,6 +57,7 @@ typedef enum
 {
   INVALID,
   LISTEN,
+  SYN_RCVD,
   ESTABLISHED,
   CLOSING_BY_PEER,
   CLOSING_BY_HOST,
@@ -95,7 +96,6 @@ typedef struct
   uint64_t bytes_received;
   uint64_t bytes_lost;
 
-  struct sockaddr_in addr;
 } microtcp_sock_t;
 
 

@@ -36,6 +36,9 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 	int sockfd;
 
 
+	if ( type == SOCK_STREAM )
+		type = SOCK_DGRAM;
+
 	check(sockfd = socket(domain, type, protocol));
 	memset(&sock, 0, sizeof(sock));
 	srand(time(NULL) + getpid());
@@ -54,9 +57,6 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 int microtcp_bind(microtcp_sock_t * socket, const struct sockaddr * address,
                socklen_t address_len)
 {
-	// memccpy((void*)&socket->addr,(void*)address,'\0',sizeof(address));
-	memcpy(&socket->addr, address, sizeof(address));
-
 	check(bind(socket->sd, address, address_len));
 	return EXIT_SUCCESS;
 }
@@ -64,33 +64,36 @@ int microtcp_bind(microtcp_sock_t * socket, const struct sockaddr * address,
 int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
                   socklen_t address_len)
 {
-	microtcp_header_t estab_header, synack_recv_header, ack_estab_header;
+	microtcp_header_t tcph;
 
-	memcpy(&socket->addr, address, address_len);
-	estab_header.seq_number = htonl(socket->seq_number);
-	estab_header.control = htons(CTRL_SYN);
 
-	check(sendto(socket->sd,(void*)&estab_header,sizeof(estab_header),0,(struct sockaddr *)(address),sizeof(*address)));
-	socket->seq_number+=1;
+	tcph.seq_number = htonl(socket->seq_number);
+	tcph.control    = htons(CTRL_SYN);
 
-	/** TODO: security_check() */
-	check(recvfrom(socket->sd,(void*)&synack_recv_header,sizeof(synack_recv_header),0,NULL,NULL));
+	check(connect(socket->sd, address, address_len));
+	check(send(socket->sd, &tcph, sizeof(tcph), 0));   // send SYN
+	check(recv(socket->sd, &tcph, sizeof(tcph), 0));   // recv SYNACK
 
-	printf("control = %d\n", ntohs(synack_recv_header.control));
-	if ( ntohs(synack_recv_header.control) == (CTRL_SYN | CTRL_ACK) ) {
+	/** TODO: recvbuf shit */
 
-		printf("SYN-ACK packet\n");
-		estab_header.seq_number = htonl(socket->seq_number);
-		estab_header.control = htons(CTRL_ACK);
+	/** SYNACK **/
+	if ( ntohs(tcph.control) != (CTRL_SYN | CTRL_ACK) ) {
 
-		check(sendto(socket->sd,(void*)&estab_header,sizeof(ack_estab_header),0,(struct sockaddr *)(address),sizeof(*address)));
-		socket->seq_number+=1;
-	
-		socket->state=ESTABLISHED;
-		return socket->sd;
+		errno = ECONNABORTED;
+		return -(EXIT_FAILURE);
 	}
 
-	return -(EXIT_FAILURE);
+	++socket->seq_number;
+	socket->ack_number = ntohl(tcph.seq_number) + 1U;
+
+	tcph.seq_number = htonl(socket->seq_number);
+	tcph.ack_number = htonl(socket->ack_number);
+	tcph.control    = htons(CTRL_ACK);
+
+	check(send(socket->sd, &tcph, sizeof(tcph), 0));  // send ACK
+	socket->state = ESTABLISHED;
+
+	return EXIT_SUCCESS;
 }
 
 int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
@@ -99,25 +102,27 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 	microtcp_header_t tcph;
 
 
+	/** TODO: convert that to switch(){...}, add more states */
+
+	if ( socket->state != INVALID )
+		return -(EXIT_FAILURE);
+
+	socket->state = LISTEN;
+
 	/** TODO: recvbuf setup */
 
 	check(recvfrom(socket->sd, &tcph, sizeof(tcph), 0, address, &address_len));
-	tcph.control = ntohs(tcph.control);
+	check(connect(socket->sd, address, address_len));
 
-	if ( tcph.control != CTRL_SYN ) {
+	if ( ntohs(tcph.control) != CTRL_SYN ) {
 
 		errno = ECONNABORTED;
 		return -(EXIT_FAILURE);
 	}
 
-	memcpy(&socket->addr, address, address_len);
+	socket->state      = SYN_RCVD;
+	socket->ack_number = ntohl(tcph.seq_number) + 1U;
 
-	tcph.seq_number = ntohl(tcph.seq_number);
-	tcph.ack_number = ntohl(tcph.ack_number);
-	tcph.window     = ntohs(tcph.window);
-	tcph.data_len   = ntohs(tcph.data_len);
-
-	socket->ack_number = tcph.seq_number + 1U;
 	++socket->packets_received;
 	++socket->bytes_received;
 
@@ -127,8 +132,8 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 	tcph.ack_number = htonl(socket->ack_number);
 	tcph.control    = htons(CTRL_ACK | CTRL_SYN);
 
-	check(sendto(socket->sd, &tcph, sizeof(tcph), 0, address, address_len));
-	check(recvfrom(socket->sd, &tcph, sizeof(tcph), 0, address, &address_len));
+	check(send(socket->sd, &tcph, sizeof(tcph), 0));
+	check(recv(socket->sd, &tcph, sizeof(tcph), 0));
 
 	if ( ( ntohs(tcph.control) ) != CTRL_ACK ) {
 
@@ -162,7 +167,7 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 		ack_header.control = htons(CTRL_ACK);
 		ack_header.ack_number = htonl(socket->ack_number);
 		printf("Sending ACK\n");
-		check(sendto(socket->sd,(void*)&ack_header,sizeof(ack_header),0,(struct sockaddr*)&socket->addr,sizeof(socket->addr)));
+		check(send(socket->sd,(void*)&ack_header,sizeof(ack_header),0));
 		
 		if(socket->state==CLOSING_BY_PEER){
 			printf("state is CBP mtcp_shut called (how == 1)\n");
@@ -184,11 +189,11 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 		fin_ack.ack_number = htonl(socket->ack_number);
 		fin_ack.control = htons(CTRL_FIN | CTRL_ACK);
 		/* Send FIN/ACK */
-		printf("Sending ACK [address: %d]\n",socket->addr.sin_addr);
-		check(sendto(socket->sd, (void*)&fin_ack, sizeof(fin_ack), 0, (struct sockaddr *)&socket->addr, sizeof(socket->addr)));
+		printf("Sending ACK\n");
+		check(send(socket->sd, (void*)&fin_ack, sizeof(fin_ack), 0));
 		/* Receive ACK for previous FINACK */
 		printf("Waiting for response..\n");
-		check(recvfrom(socket->sd, (void*)&ack, sizeof(ack), 0, NULL, NULL));
+		check(recv(socket->sd, (void*)&ack, sizeof(ack), 0));
 
 		ack.control = ntohs(ack.control);
 
