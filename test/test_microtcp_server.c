@@ -59,8 +59,10 @@ int main(int argc, char ** argv)
     check(microtcp_accept(&ssock, &addr, sizeof(addr)));
 
     while(1){
+        printf("Waiting to receive packet from client...\n");
         recvfrom(ssock.sd,(void*)&recv_header,sizeof(recv_header),0,NULL,NULL);
-        if(recv_header.control==(CTRL_FIN|CTRL_ACK)){
+        printf("Received packet from client!\n");
+        if(recv_header.control==htons(CTRL_FIN|CTRL_ACK)){
             printf("Recieved FIN-ACK from client, calling SHUT_RD\n");
             microtcp_shutdown(&ssock,SHUT_RD);
             break;    
