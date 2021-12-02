@@ -141,7 +141,7 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 {	
 	switch (how)
 	{
-	case 0: /* SHUT_RD */
+	case SHUT_RD: /* SHUT_RD */
 		print("SHUT_RD\n");
 		if(socket->state==ESTABLISHED){
 			socket->state=CLOSING_BY_PEER;
@@ -159,17 +159,17 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 		
 		if(socket->state==CLOSING_BY_PEER){
 			printf("state is CBP mtcp_shut called (how == 1\n");
-			microtcp_shutdown(socket, 1);
+			microtcp_shutdown(socket, SHUT_WR);
 			return EXIT_SUCCESS;
 		}else if(socket->state==CLOSING_BY_HOST){
 			printf("state is CBH mtcp_shut called (how == 2\n");
-			microtcp_shutdown(socket,2);
+			microtcp_shutdown(socket,SHUT_RDWR);
 		}else{
 			return -(EXIT_FAILURE);
 		}
 
 		break;
-	case 1: /* SHUT_WR */
+	case SHUT_WR: /* SHUT_WR */
 		printf("SHUT_WR\n");
 		microtcp_header_t fin_ack, ack, fin_ack_recv;
 
@@ -195,12 +195,12 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 			}
 			else if(socket->state == CLOSING_BY_PEER) {
 				printf("State is CBP so calling SHUT_RDWR\n");
-				microtcp_shutdown(socket, 2);
+				microtcp_shutdown(socket, SHUT_RDWR);
 			}
 		}
 
 		break;
-	case 2: /* SHUT _RDWR */
+	case SHUT_RDWR: /* SHUT _RDWR */
 		printf("SHUT_RDWR\n");
 		printf("Closing socket\n");
 		close(socket->sd);
