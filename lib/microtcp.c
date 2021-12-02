@@ -30,13 +30,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-
-/** DEFINES **/
-#define CTRL_FIN ( 1 << 0 )
-#define CTRL_SYN ( 1 << 1 )
-#define CTRL_RST ( 1 << 2 )
-#define CTRL_ACK ( 1 << 4 )
-
 microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 {
 	microtcp_sock_t sock;
