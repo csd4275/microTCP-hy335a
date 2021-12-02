@@ -141,7 +141,6 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 
 	/** TODO: implement checksum() in every recvfrom() */
 	/** TODO: implement checksum() */
-	
 	return EXIT_SUCCESS;
 }
 
@@ -175,14 +174,32 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 
 		break;
 	case 1: /* SHUT_WR */
-		/* code */
+		microtcp_header_t fin_ack, ack;
+
+		fin_ack.seq_number = htonl(socket->seq_number);
+		fin_ack.ack_number = htonl(socket->ack_number);
+		fin_ack.control = htons(CTRL_FIN | CTRL_ACK);
+		/* Send FIN/ACK */
+		check(sendto(socket->sd, (void*)&fin_ack, sizeof(fin_ack), 0, (struct sockaddr*)&socket->addr.sin_addr, sizeof(socket->addr.sin_addr)));
+		/* Receive ACK for previous FINACK */
+		check(recvfrom(socket->sd, (void*)&ack, sizeof(ack), 0, NULL, NULL));
+
+		ack.control = ntohs(ack.control);
+
+		/* Check if the received package is an ACK (and the correct ACK)*/
+		if(ack.control & CTRL_ACK) {
+			/** TODO: Check if ack is seq + 1 */
+			socket->state = CLOSING_BY_HOST;
+		}
+
 		break;
 	case 2: /* SHUT _RDWR */
 		/* code */
 		break;
 	shutdown()
 	default:
-		break;
+
+		return EINVAL;
 	}
 
 
