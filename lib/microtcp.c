@@ -159,11 +159,11 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 		check(sendto(socket->sd,(void*)&ack_header,sizeof(ack_header),0,(struct sockaddr*)&socket->addr,sizeof(socket->addr)));
 		
 		if(socket->state==CLOSING_BY_PEER){
-			printf("state is CBP mtcp_shut called (how == 1\n");
+			printf("state is CBP mtcp_shut called (how == 1)\n");
 			microtcp_shutdown(socket, SHUT_WR);
 			return EXIT_SUCCESS;
 		}else if(socket->state==CLOSING_BY_HOST){
-			printf("state is CBH mtcp_shut called (how == 2\n");
+			printf("state is CBH mtcp_shut called (how == 2)\n");
 			microtcp_shutdown(socket,SHUT_RDWR);
 		}else{
 			return -(EXIT_FAILURE);
