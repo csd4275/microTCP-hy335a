@@ -70,11 +70,6 @@ main(int argc, char **argv)
     }
 
     pritnf("\nConnection has been shut down successfully!\n")
-    
-    
-    
-    
-    
 
     return 0;
 }

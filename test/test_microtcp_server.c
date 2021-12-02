@@ -39,7 +39,7 @@ int main(int argc, char ** argv)
     microtcp_sock_t ssock;
     struct sockaddr_in addr;
     uint16_t port;
-
+    microtcp_header_t recv_header;
 
     server_check_main_input(argc, argv);
     printf("initializing server...\n");
@@ -58,8 +58,15 @@ int main(int argc, char ** argv)
     check(microtcp_bind(&ssock, (struct sockaddr *)(&addr), sizeof(addr)));
     check(microtcp_accept(&ssock, &addr, sizeof(addr)));
 
+    while(1){
+        recvfrom(ssock->sd,(void*)&recv_header,sizeof(recv_header),0,NULL,NULL);
+        if(recv_header.control==(CTRL_FIN|CTRL_ACK)){
+            printf("Recieved FIN-ACK from client, calling SHUT_RD\n");
+            microtcp_shutdown(ssock,SHUT_RD);
+            break;    
+        }
+    }
 
-    close(ssock.sd);
-
+    printf("Connection with host successfully closed!\n")
     return 0;
 }
