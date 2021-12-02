@@ -65,7 +65,8 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
                   socklen_t address_len)
 {
 	microtcp_header_t estab_header, synack_recv_header, ack_estab_header;
-	
+
+	memcpy(&socket->addr, address, sizeof(address));	
 	estab_header.seq_number = htonl(socket->seq_number);
 	estab_header.control = htons(CTRL_SYN);
 
@@ -177,8 +178,8 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 		fin_ack.ack_number = htonl(socket->ack_number);
 		fin_ack.control = htons(CTRL_FIN | CTRL_ACK);
 		/* Send FIN/ACK */
-		printf("Sending ACK\n");
-		check(sendto(socket->sd, (void*)&fin_ack, sizeof(fin_ack), 0, (struct sockaddr *)&socket->addr.sin_addr, sizeof(socket->addr.sin_addr)));
+		printf("Sending ACK [address: %d]\n",socket->addr.sin_addr);
+		check(sendto(socket->sd, (void*)&fin_ack, sizeof(fin_ack), 0, (struct sockaddr *)&socket->addr, sizeof(socket->addr)));
 		/* Receive ACK for previous FINACK */
 		printf("Waiting for response..\n");
 		check(recvfrom(socket->sd, (void*)&ack, sizeof(ack), 0, NULL, NULL));
