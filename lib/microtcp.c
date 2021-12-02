@@ -141,7 +141,7 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 
 	/** TODO: implement checksum() in every recvfrom() */
 	/** TODO: implement checksum() */
-	shutdown
+	
 	return EXIT_SUCCESS;
 }
 
@@ -150,7 +150,29 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 	switch (how)
 	{
 	case 0: /* SHUT_RD */
-		/* code */
+		if(socket->state==ESTABLISHED){
+			socket->state=CLOSING_BY_PEER;
+		}else if(socket->state==CLOSING_BY_HOST){
+			// socket->state= ?? state becomes closed  on SHUT_RDWR
+		}else{
+			return -(EXIT_FAILURE);
+		}
+
+		microtcp_header_t ack_header;
+		ack_header.control = htons(CTRL_ACK);
+		ack_header.ack_number = htonl(socket->ack_number);
+
+		check(sendto(socket->sd,ack_header,sizeof(ack_header),0,(struct sockaddr*)&socket->addr.sin_addr,sizeof(socket->addr.sin_addr)));
+		
+		if(socket.state==CLOSING_BY_PEER){
+			microtcp_shutdown(socket, 1);
+			return EXIT_SUCCESS;
+		}else if(socket.state==CLOSING_BY_HOST){
+			microtcp_shutdown(socket,2);
+		}else{
+			return -(EXIT_FAILURE);
+		}
+
 		break;
 	case 1: /* SHUT_WR */
 		/* code */
@@ -158,7 +180,7 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 	case 2: /* SHUT _RDWR */
 		/* code */
 		break;
-	
+	shutdown()
 	default:
 		break;
 	}
