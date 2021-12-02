@@ -33,9 +33,9 @@
 #define CTRL_RST ( 1 << 2 )
 #define CTRL_ACK ( 1 << 4 )
 
-#define SHUT_RD 0
-#define SHUT_WR 1
-#define SHUT_RDWR 2
+// #define SHUT_RD 0
+// #define SHUT_WR 1
+// #define SHUT_RDWR 2
 
 /*
  * Several useful constants

@@ -59,14 +59,14 @@ int main(int argc, char ** argv)
     check(microtcp_accept(&ssock, &addr, sizeof(addr)));
 
     while(1){
-        recvfrom(ssock->sd,(void*)&recv_header,sizeof(recv_header),0,NULL,NULL);
+        recvfrom(ssock.sd,(void*)&recv_header,sizeof(recv_header),0,NULL,NULL);
         if(recv_header.control==(CTRL_FIN|CTRL_ACK)){
             printf("Recieved FIN-ACK from client, calling SHUT_RD\n");
-            microtcp_shutdown(ssock,SHUT_RD);
+            microtcp_shutdown(&ssock,SHUT_RD);
             break;    
         }
     }
 
-    printf("Connection with host successfully closed!\n")
+    printf("Connection with host successfully closed!\n");
     return 0;
 }

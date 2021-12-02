@@ -58,7 +58,7 @@ main(int argc, char **argv)
     printf("Sucessfully connected to server!\n\n\n");
     
     printf("calling SHUT_WR on client socket.\n");
-    microtcp_shutdown(csock,SHUT_WR);
+    microtcp_shutdown(&csock,SHUT_WR);
 
     printf("Waiting for FINACK packet from server\n");
     microtcp_header_t finack_recv_header;
@@ -66,10 +66,10 @@ main(int argc, char **argv)
     
     if(finack_recv_header.control==(CTRL_FIN|CTRL_ACK)){
         printf("Recieved FIN-ACK from server, calling SHUT_RD\n");
-        microtcp_shutdown(csock,SHUT_RD);
+        microtcp_shutdown(&csock,SHUT_RD);
     }
 
-    pritnf("\nConnection has been shut down successfully!\n")
+    printf("\nConnection has been shut down successfully!\n");
 
     return 0;
 }

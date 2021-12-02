@@ -142,7 +142,7 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 	switch (how)
 	{
 	case SHUT_RD: /* SHUT_RD */
-		print("SHUT_RD\n");
+		printf("SHUT_RD\n");
 		if(socket->state==ESTABLISHED){
 			socket->state=CLOSING_BY_PEER;
 		}else if(socket->state==CLOSING_BY_HOST){
@@ -155,7 +155,7 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 		ack_header.control = htons(CTRL_ACK);
 		ack_header.ack_number = htonl(socket->ack_number);
 		printf("Sending ACK\n");
-		check(sendto(socket->sd,(void*)&ack_header,sizeof(ack_header),0,(struct sockaddr*)&socket->addr.sin_addr,sizeof(socket->addr.sin_addr)));
+		check(sendto(socket->sd,(void*)&ack_header,sizeof(ack_header),0,(struct sockaddr*)&socket->addr,sizeof(socket->addr)));
 		
 		if(socket->state==CLOSING_BY_PEER){
 			printf("state is CBP mtcp_shut called (how == 1\n");
@@ -171,14 +171,14 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 		break;
 	case SHUT_WR: /* SHUT_WR */
 		printf("SHUT_WR\n");
-		microtcp_header_t fin_ack, ack, fin_ack_recv;
+		microtcp_header_t fin_ack, ack;
 
 		fin_ack.seq_number = htonl(socket->seq_number);
 		fin_ack.ack_number = htonl(socket->ack_number);
 		fin_ack.control = htons(CTRL_FIN | CTRL_ACK);
 		/* Send FIN/ACK */
 		printf("Sending ACK\n");
-		check(sendto(socket->sd, (void*)&fin_ack, sizeof(fin_ack), 0, (struct sockaddr*)&socket->addr.sin_addr, sizeof(socket->addr.sin_addr)));
+		check(sendto(socket->sd, (void*)&fin_ack, sizeof(fin_ack), 0, (struct sockaddr *)&socket->addr.sin_addr, sizeof(socket->addr.sin_addr)));
 		/* Receive ACK for previous FINACK */
 		printf("Waiting for response..\n");
 		check(recvfrom(socket->sd, (void*)&ack, sizeof(ack), 0, NULL, NULL));
@@ -209,30 +209,6 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 	default:
 		return EINVAL;
 	}
-
-
-
-
-
-
-
-
-	// microtcp_header_t fin_header, received_header;
-
-	// fin_header.seq_number=htonl(socket->seq_number);
-	// fin_header.control=htons(CTRL_FIN);
-
-	// check(sendto(socket->sd,fin_header,sizeof(fin_header),0,(struct sockaddr *)&socket->addr,sizeof(socket->addr)));
-	// printf("FIN packet sent to server\n");
-	
-	// printf("Waiting for ACK from the server\n");
-	// check(recvfrom(socket->sd,(void*)&received_header,sizeof(received_header),0,NULL,NULL));
-	// if(received_header.control == CTRL_ACK){
-	// 	printf("Received ACK from the server");
-
-		
-
-	// }
 }
 
 ssize_t microtcp_send(microtcp_sock_t * socket, const void *buffer, size_t length,
