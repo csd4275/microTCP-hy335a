@@ -26,6 +26,17 @@
 #include <netinet/ip.h>
 #include <stdint.h>
 
+
+/** DEFINES **/
+#define CTRL_FIN ( 1 << 0 )
+#define CTRL_SYN ( 1 << 1 )
+#define CTRL_RST ( 1 << 2 )
+#define CTRL_ACK ( 1 << 4 )
+
+#define SHUT_RD 0
+#define SHUT_WR 1
+#define SHUT_RDWR 2
+
 /*
  * Several useful constants
  */
