@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include <time.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -95,7 +96,7 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 		return socket->sd;
 	}
 
-	return -1;
+	return -(EXIT_FAILURE);
 }
 
 int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
@@ -104,7 +105,6 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 	microtcp_header_t tcph;
 
 
-	/** TODO: 3-way-handshake */
 	/** TODO: recvbuf setup */
 
 	check(recvfrom(socket->sd, &tcph, sizeof(tcph), 0, address, &address_len));
@@ -117,21 +117,24 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 
 	printf("header.control = %x\n", tcph.control);
 
-	if ( tcph.control & CTRL_SYN ) {
+	if ( !(tcph.control & CTRL_SYN) ) {
 
-		printf("CTRL-SYN\n");
-		socket->ack_number = tcph.seq_number + 1U;
-		++socket->packets_received;
-		++socket->bytes_received;
-
-		/** TODO: cwnd and receive buffer */
-
-		tcph.seq_number = htonl(socket->seq_number);
-		tcph.ack_number = htonl(socket->ack_number);
-		tcph.control    = htons(CTRL_ACK | CTRL_SYN);
-
-		check(sendto(socket->sd, &tcph, sizeof(tcph), 0, address, address_len));
+		errno = ECONNABORTED;
+		return -(EXIT_FAILURE);
 	}
+
+	printf("CTRL-SYN\n");
+	socket->ack_number = tcph.seq_number + 1U;
+	++socket->packets_received;
+	++socket->bytes_received;
+
+	/** TODO: cwnd and receive buffer */
+
+	tcph.seq_number = htonl(socket->seq_number);
+	tcph.ack_number = htonl(socket->ack_number);
+	tcph.control    = htons(CTRL_ACK | CTRL_SYN);
+
+	check(sendto(socket->sd, &tcph, sizeof(tcph), 0, address, address_len));
 
 	printf("ACKed\n");
 	socket->state = ESTABLISHED;
