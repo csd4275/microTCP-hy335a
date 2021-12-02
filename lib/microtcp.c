@@ -66,7 +66,7 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 {
 	microtcp_header_t estab_header, synack_recv_header, ack_estab_header;
 
-	memcpy(&socket->addr, address, sizeof(address));	
+	memcpy(&socket->addr, address, address_len);
 	estab_header.seq_number = htonl(socket->seq_number);
 	estab_header.control = htons(CTRL_SYN);
 
@@ -109,7 +109,8 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 	tcph.window     = ntohs(tcph.window);
 	tcph.data_len   = ntohs(tcph.data_len);
 
-	printf("header.control = %x\n", tcph.control);
+	memcpy(&socket->addr, address, address_len);
+	// printf("header.control = %x\n", tcph.control);
 
 	if ( !(tcph.control & CTRL_SYN) ) {
 
