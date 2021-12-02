@@ -36,10 +36,11 @@ void check_main_input(int argc, char ** argv);
 
 int main(int argc, char ** argv)
 {
-    microtcp_sock_t ssock;
     struct sockaddr_in addr;
     uint16_t port;
-    microtcp_header_t recv_header;
+
+    microtcp_sock_t ssock;
+    microtcp_header_t tcph;
 
     server_check_main_input(argc, argv);
     printf("initializing server...\n");
@@ -58,17 +59,17 @@ int main(int argc, char ** argv)
     check(microtcp_bind(&ssock, (struct sockaddr *)(&addr), sizeof(addr)));
     check(microtcp_accept(&ssock, &addr, sizeof(addr)));
 
-    while(1){
-        printf("Waiting to receive packet from client...\n");
-        recvfrom(ssock.sd,(void*)&recv_header,sizeof(recv_header),0,NULL,NULL);
-        printf("Received packet from client!\n");
-        if(recv_header.control==htons(CTRL_FIN|CTRL_ACK)){
-            printf("Recieved FIN-ACK from client, calling SHUT_RD\n");
-            microtcp_shutdown(&ssock,SHUT_RD);
-            break;    
-        }
+    for (;;) {
+
+        check(recvfrom(ssock.sd, &tcph, sizeof(tcph), 0, NULL, NULL));
+
+        if ( ( ntohs(tcph.control) ) == ( CTRL_FIN | CTRL_ACK) )
+            break;
+
+        printf("Did not received FIN-ACK\n");
     }
 
+    microtcp_shutdown(&ssock, SHUT_RD);
     printf("Connection with host successfully closed!\n");
     return 0;
 }

@@ -66,7 +66,7 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 {
 	microtcp_header_t estab_header, synack_recv_header, ack_estab_header;
 
-	memcpy(&socket->addr, address, sizeof(address));	
+	memcpy(&socket->addr, address, address_len);
 	estab_header.seq_number = htonl(socket->seq_number);
 	estab_header.control = htons(CTRL_SYN);
 
@@ -102,22 +102,21 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 	/** TODO: recvbuf setup */
 
 	check(recvfrom(socket->sd, &tcph, sizeof(tcph), 0, address, &address_len));
+	tcph.control = ntohs(tcph.control);
 
-	tcph.seq_number = ntohl(tcph.seq_number);
-	tcph.ack_number = ntohl(tcph.ack_number);
-	tcph.control    = ntohs(tcph.control);
-	tcph.window     = ntohs(tcph.window);
-	tcph.data_len   = ntohs(tcph.data_len);
-
-	printf("header.control = %x\n", tcph.control);
-
-	if ( !(tcph.control & CTRL_SYN) ) {
+	if ( tcph.control != CTRL_SYN ) {
 
 		errno = ECONNABORTED;
 		return -(EXIT_FAILURE);
 	}
 
-	printf("CTRL-SYN\n");
+	memcpy(&socket->addr, address, address_len);
+
+	tcph.seq_number = ntohl(tcph.seq_number);
+	tcph.ack_number = ntohl(tcph.ack_number);
+	tcph.window     = ntohs(tcph.window);
+	tcph.data_len   = ntohs(tcph.data_len);
+
 	socket->ack_number = tcph.seq_number + 1U;
 	++socket->packets_received;
 	++socket->bytes_received;
@@ -129,12 +128,19 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 	tcph.control    = htons(CTRL_ACK | CTRL_SYN);
 
 	check(sendto(socket->sd, &tcph, sizeof(tcph), 0, address, address_len));
+	check(recvfrom(socket->sd, &tcph, sizeof(tcph), 0, address, &address_len));
 
-	printf("ACKed\n");
+	if ( ( ntohs(tcph.control) ) != CTRL_ACK ) {
+
+		errno = ECONNABORTED;
+		return -(EXIT_FAILURE);
+	}
+
 	socket->state = ESTABLISHED;
 
 	/** TODO: implement checksum() in every recvfrom() */
 	/** TODO: implement checksum() */
+
 	return EXIT_SUCCESS;
 }
 
@@ -142,15 +148,15 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 {	
 	switch (how)
 	{
-	case SHUT_RD: /* SHUT_RD */
-		printf("SHUT_RD\n");
+	case SHUT_RD:
+
 		if(socket->state==ESTABLISHED){
 			socket->state=CLOSING_BY_PEER;
 		}else if(socket->state==CLOSING_BY_HOST){
 			// socket->state= ?? state becomes closed  on SHUT_RDWR
-		}else{
-			return -(EXIT_FAILURE);
 		}
+		else
+			return -(EXIT_FAILURE);
 
 		microtcp_header_t ack_header;
 		ack_header.control = htons(CTRL_ACK);
@@ -170,7 +176,7 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 		}
 
 		break;
-	case SHUT_WR: /* SHUT_WR */
+	case SHUT_WR:
 		printf("SHUT_WR\n");
 		microtcp_header_t fin_ack, ack;
 

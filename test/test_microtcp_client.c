@@ -64,7 +64,8 @@ main(int argc, char **argv)
     microtcp_header_t finack_recv_header;
     recvfrom(csock.sd,(void*)&finack_recv_header,sizeof(finack_recv_header),0,NULL,NULL);
     
-    if(finack_recv_header.control==(CTRL_FIN|CTRL_ACK)){
+    if( ntohs(finack_recv_header.control) == (CTRL_FIN | CTRL_ACK) ){
+
         printf("Recieved FIN-ACK from server, calling SHUT_RD\n");
         microtcp_shutdown(&csock,SHUT_RD);
     }
