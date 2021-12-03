@@ -49,7 +49,7 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 	sock.cwnd       = MICROTCP_INIT_CWND;
 	sock.ssthresh   = MICROTCP_INIT_SSTHRESH;
 
-	/** TODO: on_exit() -> free resources */
+	/** TODO: on_exit() -> free resources - call shutdown() */
 
 	return sock;
 }
@@ -74,7 +74,7 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 	check(send(socket->sd, &tcph, sizeof(tcph), 0));   // send SYN
 	check(recv(socket->sd, &tcph, sizeof(tcph), 0));   // recv SYNACK
 
-	/** TODO: recvbuf shit */
+	/** TODO: recvbuf handling */
 
 	/** SYNACK **/
 	if ( ntohs(tcph.control) != (CTRL_SYN | CTRL_ACK) ) {

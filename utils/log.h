@@ -29,6 +29,8 @@
 /* Set to 0 to disable debug messages at compile time ;) */
 #define ENABLE_DEBUG_MSG 1
 
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+
 #if ENABLE_DEBUG_MSG
 #define LOG_INFO(M, ...)                                                        \
                 fprintf(stderr, "[INFO]: %s:%d: " M "\n", __FILE__, __LINE__, ##__VA_ARGS__)
@@ -45,7 +47,7 @@
 
 #if ENABLE_DEBUG_MSG
 #define LOG_DEBUG(M, ...)                                                       \
-        fprintf(stderr, "[DEBUG]: %s:%d: " M "\n", __FILE__, __LINE__, ##__VA_ARGS__)
+        fprintf(stderr, "\033[31m[\033[0;31mDEBUG\033[0;1m]\033[0m: \033[93m%s\033[0m::\033[93m%d\033[0m: " M "\n", __FILENAME__, __LINE__, ##__VA_ARGS__)
 #else
 #define LOG_DEBUG(M, ...)
 #endif
