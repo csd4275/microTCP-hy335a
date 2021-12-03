@@ -52,7 +52,7 @@ main(int argc, char **argv)
     addr.sin_family      = AF_INET;
 
     inet_ntop(AF_INET, &iaddr, buff, sizeof(struct sockaddr_in));
-    printf("Connecting to server %s [%d]\n",buff, iaddr);
+    LOG_DEBUG("Connecting to server %s [%d]\n",buff, iaddr);
     microtcp_connect(&csock,(struct sockaddr*)&addr,sizeof(addr));
 
     printf("Sucessfully connected to server!\n\n\n");
