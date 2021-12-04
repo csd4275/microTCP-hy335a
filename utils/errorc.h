@@ -14,8 +14,6 @@ static inline void _check(int retval, int line, char * funct){
 
     if ( retval < 0 ) {
 
-        /** TODO: terminate connections ? */
-
         #ifdef ENABLE_DEBUG_MSG
         printf("\033[93m%d\033[0m::\033[0;91m%s\033[0m() failed: \033[4m%s\033[0m\n", line, funct, strerror(errno));
         #endif

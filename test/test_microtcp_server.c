@@ -26,6 +26,7 @@
 
 #include "../lib/microtcp.h"
 #include "../utils/errorc.h"
+#include "../utils/log.h"
 #include "connections.h"
 
 #include <netinet/ip.h>
@@ -67,7 +68,7 @@ int main(int argc, char ** argv)
         if ( ( ntohs(tcph.control) ) == ( CTRL_FIN | CTRL_ACK) )
             break;
 
-        printf("Did not received FIN-ACK\n");
+        LOG_DEBUG("Did not received FIN-ACK\n");
     }
 
     microtcp_shutdown(&ssock, SHUT_RD);

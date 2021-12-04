@@ -33,15 +33,12 @@
 #define CTRL_RST ( 1 << 2 )
 #define CTRL_ACK ( 1 << 4 )
 
-// #define SHUT_RD 0
-// #define SHUT_WR 1
-// #define SHUT_RDWR 2
 
 /*
  * Several useful constants
  */
 #define MICROTCP_ACK_TIMEOUT_US 200000
-#define MICROTCP_MSS 1400U
+#define MICROTCP_MSS 1400
 #define MICROTCP_RECVBUF_LEN 8192
 #define MICROTCP_WIN_SIZE MICROTCP_RECVBUF_LEN
 #define MICROTCP_INIT_CWND (3 * MICROTCP_MSS)
@@ -83,6 +80,7 @@ typedef struct
                                      is freed at the shutdown of the connection. This buffer is used
                                      to retrieve the data from the network. */
   size_t buf_fill_level;         /**< Amount of data in the buffer */
+  size_t sendbuflen;
 
   size_t cwnd;
   size_t ssthresh;

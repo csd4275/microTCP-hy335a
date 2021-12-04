@@ -21,6 +21,7 @@
 #include "microtcp.h"
 #include "../utils/crc32.h"
 #include "../utils/errorc.h"
+#include "../utils/log.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -29,6 +30,18 @@
 #include <time.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+
+static _cleanup(int status, void * recvbuf){
+
+	free(recvbuf);
+
+	if ( status == EXIT_SUCCESS )
+		LOG_DEBUG("EXIT_SUCCESS\n");
+	else
+		LOG_DEBUG("EXIT_FAILURE\n");
+
+	/** TODO: terminate connections ? */
+}
 
 microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 {
@@ -65,12 +78,24 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
                   socklen_t address_len)
 {
 	microtcp_header_t tcph;
+	void * tbuff;
 
-
-	tcph.seq_number = htonl(socket->seq_number);
-	tcph.control    = htons(CTRL_SYN);
 
 	check(connect(socket->sd, address, address_len));
+
+	if ( !( tbuff = malloc(MICROTCP_RECVBUF_LEN) ) ) {
+
+		errno = ENOMEM;
+		return -(EXIT_FAILURE);
+	}
+
+	on_exit(_cleanup, tbuff);
+
+	tcph.seq_number = htonl(socket->seq_number);
+	tcph.window     = htonl(MICROTCP_RECVBUF_LEN);
+	tcph.control    = htons(CTRL_SYN);
+	socket->recvbuf = tbuff;
+
 	check(send(socket->sd, &tcph, sizeof(tcph), 0));   // send SYN
 	check(recv(socket->sd, &tcph, sizeof(tcph), 0));   // recv SYNACK
 
@@ -100,6 +125,7 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
                  socklen_t address_len)
 {
 	microtcp_header_t tcph;
+	void * tbuff;
 
 
 	/** TODO: convert that to switch(){...}, add more states */
@@ -107,9 +133,14 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 	if ( socket->state != INVALID )
 		return -(EXIT_FAILURE);
 
-	socket->state = LISTEN;
+	if ( !( tbuff = malloc(MICROTCP_RECVBUF_LEN) ) ) {
 
-	/** TODO: recvbuf setup */
+		errno = ENOMEM;
+		return -(EXIT_FAILURE);
+	}
+
+	socket->recvbuf = tbuff;
+	socket->state   = LISTEN;
 
 	check(recvfrom(socket->sd, &tcph, sizeof(tcph), 0, address, &address_len));
 	check(connect(socket->sd, address, address_len));
