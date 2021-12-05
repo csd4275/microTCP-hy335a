@@ -80,10 +80,10 @@ typedef struct
                                      is freed at the shutdown of the connection. This buffer is used
                                      to retrieve the data from the network. */
   size_t buf_fill_level;         /**< Amount of data in the buffer */
-  size_t sendbuflen;
-
   size_t cwnd;
   size_t ssthresh;
+  
+  uint16_t sendbuflen;
 
   size_t seq_number;             /**< Keep the state of the sequence number */
   size_t ack_number;             /**< Keep the state of the ack number */

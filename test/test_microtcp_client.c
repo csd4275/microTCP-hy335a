@@ -71,7 +71,7 @@ main(int argc, char **argv)
         microtcp_shutdown(&csock,SHUT_RD);
     }
 
-    LOG_DEBUG("\nConnection has been shut down successfully!\n");
+    LOG_DEBUG("Connection has been shut down successfully!\n");
 
     return 0;
 }

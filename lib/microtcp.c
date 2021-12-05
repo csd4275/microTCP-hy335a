@@ -20,7 +20,6 @@
 
 #include "microtcp.h"
 #include "../utils/crc32.h"
-#include "../utils/errorc.h"
 #include "../utils/log.h"
 
 #include <string.h>
@@ -31,7 +30,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-static _cleanup(int status, void * recvbuf){
+static void _cleanup(int status, void * recvbuf){
 
 	free(recvbuf);
 
@@ -85,11 +84,13 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 
 	if ( !( tbuff = malloc(MICROTCP_RECVBUF_LEN) ) ) {
 
+		socket->state = INVALID;
 		errno = ENOMEM;
+
 		return -(EXIT_FAILURE);
 	}
 
-	on_exit(_cleanup, tbuff);
+	check(on_exit(_cleanup, tbuff));
 
 	tcph.seq_number = htonl(socket->seq_number);
 	tcph.window     = htonl(MICROTCP_RECVBUF_LEN);
@@ -99,17 +100,20 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 	check(send(socket->sd, &tcph, sizeof(tcph), 0));   // send SYN
 	check(recv(socket->sd, &tcph, sizeof(tcph), 0));   // recv SYNACK
 
-	/** TODO: recvbuf handling */
+	/** TODO: cwnd handling */
 
 	/** SYNACK **/
 	if ( ntohs(tcph.control) != (CTRL_SYN | CTRL_ACK) ) {
 
+		socket->state = INVALID;
 		errno = ECONNABORTED;
+
 		return -(EXIT_FAILURE);
 	}
 
 	++socket->seq_number;
 	socket->ack_number = ntohl(tcph.seq_number) + 1U;
+	socket->sendbuflen = ntohs(tcph.window);
 
 	tcph.seq_number = htonl(socket->seq_number);
 	tcph.ack_number = htonl(socket->ack_number);
@@ -142,39 +146,45 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 	socket->recvbuf = tbuff;
 	socket->state   = LISTEN;
 
+	check(on_exit(_cleanup, tbuff));
 	check(recvfrom(socket->sd, &tcph, sizeof(tcph), 0, address, &address_len));
 	check(connect(socket->sd, address, address_len));
 
 	if ( ntohs(tcph.control) != CTRL_SYN ) {
 
+		socket->state = INVALID;
 		errno = ECONNABORTED;
+
 		return -(EXIT_FAILURE);
 	}
 
 	socket->state      = SYN_RCVD;
+	socket->sendbuflen = ntohs(tcph.window);
 	socket->ack_number = ntohl(tcph.seq_number) + 1U;
 
 	++socket->packets_received;
 	++socket->bytes_received;
 
-	/** TODO: cwnd and receive buffer */
+	/** TODO: cwnd */
 
 	tcph.seq_number = htonl(socket->seq_number);
 	tcph.ack_number = htonl(socket->ack_number);
 	tcph.control    = htons(CTRL_ACK | CTRL_SYN);
+	tcph.window     = htons(MICROTCP_RECVBUF_LEN);
 
 	check(send(socket->sd, &tcph, sizeof(tcph), 0));
 	check(recv(socket->sd, &tcph, sizeof(tcph), 0));
 
 	if ( ( ntohs(tcph.control) ) != CTRL_ACK ) {
 
+		socket->state = INVALID;
 		errno = ECONNABORTED;
+
 		return -(EXIT_FAILURE);
 	}
 
 	socket->state = ESTABLISHED;
 
-	/** TODO: implement checksum() in every recvfrom() */
 	/** TODO: implement checksum() */
 
 	return EXIT_SUCCESS;

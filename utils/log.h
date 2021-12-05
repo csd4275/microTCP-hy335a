@@ -22,19 +22,15 @@
 #define UTILS_LOG_H_
 
 #include <stdio.h>
-#include <errno.h>
-#include <string.h>
 #include <sys/syscall.h>
 
-/* Set to 0 to disable debug messages at compile time ;) */
-#define ENABLE_DEBUG_MSG 1
 
-#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#define ENABLE_DEBUG_MSG
 
-#if ENABLE_DEBUG_MSG
+
+#ifdef ENABLE_DEBUG_MSG
 #define LOG_INFO(M, ...)                                                        \
                 fprintf(stderr, "[INFO]: %s:%d: " M "\n", __FILE__, __LINE__, ##__VA_ARGS__)
-
 #else
 #define LOG_INFO(M, ...)
 #endif
@@ -45,11 +41,34 @@
 #define LOG_WARN(M, ...)                                                                \
         fprintf(stderr, "[WARNING] %s:%d: " M "\n", __FILE__, __LINE__, ##__VA_ARGS__)
 
-#if ENABLE_DEBUG_MSG
+#ifdef ENABLE_DEBUG_MSG
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+
+#define __FILENAME__   \
+        (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+
+
+#define check(x) _check(x, __LINE__, __FUNCTION__);
+
+static inline void _check(int retval, int line, const char * funct){
+
+    if ( retval < 0 ) {
+
+        #ifdef ENABLE_DEBUG_MSG
+        printf("\033[93m%d\033[0m::\033[0;91m%s\033[0m() failed: \033[4m%s\033[0m\n", line, funct, strerror(errno));
+        #endif
+        exit(EXIT_FAILURE);
+    }
+}
 #define LOG_DEBUG(M, ...)                                                       \
-        fprintf(stderr, "\033[1m[\033[0;31mDEBUG\033[0;1m]\033[0m: \033[93m%s\033[0m::\033[93m%d\033[0m: " M "\n", __FILENAME__, __LINE__, ##__VA_ARGS__)
+        fprintf(stderr, "\033[1m[\033[0;31mDEBUG\033[0;1m]\033[0m: \033[93m%s\033[0m::\033[93m%s\033[0m::\033[93m%d\033[0m -> " M "\n", __FILENAME__ , __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #else
 #define LOG_DEBUG(M, ...)
+#define check(x)
 #endif
 
 #endif /* UTILS_LOG_H_ */

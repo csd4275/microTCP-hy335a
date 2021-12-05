@@ -25,7 +25,6 @@
 
 
 #include "../lib/microtcp.h"
-#include "../utils/errorc.h"
 #include "../utils/log.h"
 #include "connections.h"
 
