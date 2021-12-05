@@ -30,6 +30,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+
 static void _cleanup(int status, void * recvbuf){
 
 	free(recvbuf);
@@ -150,6 +151,8 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 	check(recvfrom(socket->sd, &tcph, sizeof(tcph), 0, address, &address_len));
 	check(connect(socket->sd, address, address_len));
 
+	print_tcp_header(&tcph);
+
 	if ( ntohs(tcph.control) != CTRL_SYN ) {
 
 		socket->state = INVALID;
@@ -174,6 +177,8 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 
 	check(send(socket->sd, &tcph, sizeof(tcph), 0));
 	check(recv(socket->sd, &tcph, sizeof(tcph), 0));
+
+	print_tcp_header(&tcph);
 
 	if ( ( ntohs(tcph.control) ) != CTRL_ACK ) {
 

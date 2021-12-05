@@ -39,6 +39,9 @@ int main(int argc, char ** argv)
     struct sockaddr_in addr;
     uint16_t port;
 
+    int buff_;
+    int sockopt;
+
     microtcp_sock_t ssock;
     microtcp_header_t tcph;
 
@@ -53,6 +56,19 @@ int main(int argc, char ** argv)
     else
         exit(EXIT_FAILURE);
 
+    /////////////////////////////////////////////////////
+    printf("socket options:\n");
+    sockopt = sizeof(buff_);
+    check(getsockopt(ssock.sd, SOL_SOCKET, SO_RCVBUF, &buff_, &sockopt));
+    printf("  - SO_RCVBUF    = %d\n", buff_);
+    check(getsockopt(ssock.sd, SOL_SOCKET, SO_SNDBUF, &buff_, &sockopt));
+    printf("  - SO_SNDBUF    = %d\n", buff_);
+    check(getsockopt(ssock.sd, SOL_SOCKET, SO_SNDLOWAT, &buff_, &sockopt));
+    printf("  - SO_SNDLOWAT  = %d\n", buff_);
+    check(getsockopt(ssock.sd, SOL_SOCKET, SO_RCVLOWAT, &buff_, &sockopt));
+    printf("  - SO_RCVLOWAT  = %d\n", buff_);
+    /////////////////////////////////////////////////////
+
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port        = htons(atoi(argv[1]));
     addr.sin_family      = AF_INET;
@@ -63,6 +79,7 @@ int main(int argc, char ** argv)
     for (;;) {
 
         check(recvfrom(ssock.sd, &tcph, sizeof(tcph), 0, NULL, NULL));
+        // print_tcp_header(&tcph);
 
         if ( ( ntohs(tcph.control) ) == ( CTRL_FIN | CTRL_ACK) )
             break;
