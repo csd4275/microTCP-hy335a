@@ -49,6 +49,7 @@
 #include <errno.h>
 #include "../lib/microtcp.h"
 
+int seqbase;
 
 static void strctrl(uint16_t cbits){
 
@@ -78,8 +79,11 @@ void print_tcp_header(microtcp_header_t * tcph){
 
 	/** TODO: future_use{0, 1, 2} */
 
+    if ( !counter )
+        seqbase = ntohl(tcph->seq_number);
+
     printf("\n\033[1mTCP-header#%d\033[0m\n", counter);
-    printf("  * \033[4mseq#\033[0m = %d\n", ntohl(tcph->seq_number));
+    printf("  * \033[4mseq#\033[0m = \033[3m%d\033[0m\n", ntohl(tcph->seq_number) - seqbase);
     printf("  * \033[4mack#\033[0m = %d\n", ntohl(tcph->ack_number));
     printf("  * \033[4mctrl\033[0m = %d - ", ntohs(tcph->control));
 	strctrl(ntohs(tcph->control));
