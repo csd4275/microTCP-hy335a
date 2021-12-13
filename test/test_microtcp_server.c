@@ -64,34 +64,20 @@ int main(int argc, char ** argv)
     check(microtcp_bind(&ssock, (struct sockaddr *)(&addr), sizeof(addr)));
     check(microtcp_accept(&ssock, &addr, sizeof(addr)));
 
-    /////////////////////////////////////////////////////
-    printf("socket options:\n");
-    sockopt = sizeof(buff_);
-    check(getsockopt(ssock.sd, SOL_SOCKET, SO_RCVBUF, &buff_, &sockopt));
-    printf("  - SO_RCVBUF    = %d\n", buff_);
-    check(getsockopt(ssock.sd, SOL_SOCKET, SO_SNDBUF, &buff_, &sockopt));
-    printf("  - SO_SNDBUF    = %d\n", buff_);
-    check(getsockopt(ssock.sd, SOL_SOCKET, SO_SNDLOWAT, &buff_, &sockopt));
-    printf("  - SO_SNDLOWAT  = %d\n", buff_);
-    check(getsockopt(ssock.sd, SOL_SOCKET, SO_RCVLOWAT, &buff_, &sockopt));
-    printf("  - SO_RCVLOWAT  = %d\n", buff_);
-    sockopt = sizeof(tv);
-    check(getsockopt(ssock.sd, SOL_SOCKET, SO_RCVTIMEO, &tv, &sockopt));
-    printf("  - SO_RCVTIMEO  = %lds%ldus\n", tv.tv_sec, tv.tv_usec);
-    sockopt = sizeof(buff_);
-    check(getsockopt(ssock.sd, SOL_SOCKET, SO_INCOMING_CPU, &buff_, &sockopt))
-    printf("  - INCOMING_CPU = %d\n", buff_);
-    /////////////////////////////////////////////////////
-
     for (;;) {
 
-        check(recvfrom(ssock.sd, &tcph, sizeof(tcph), 0, NULL, NULL));
-        // print_tcp_header(&tcph);
+        check( recv(ssock.sd, &tcph, sizeof(tcph), 0) );
+        print_tcp_header(&ssock, &tcph);
 
-        if ( ( ntohs(tcph.control) ) == ( CTRL_FIN | CTRL_ACK) )
+        if ( ntohs(tcph.control) == (CTRL_FIN | CTRL_ACK) ) {
+
+            LOG_DEBUG("Received FIN-ACK\n");
             break;
+        }
+        else {
 
-        LOG_DEBUG("Did not received FIN-ACK\n");
+            // check( send(ssock.fd, ) );
+        }
     }
 
     microtcp_shutdown(&ssock, SHUT_RD);

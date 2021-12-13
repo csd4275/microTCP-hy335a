@@ -43,21 +43,14 @@ main(int argc, char **argv)
     client_check_main_input(argc, argv);
     csock = microtcp_socket(AF_INET, SOCK_DGRAM, 0);
 
-    printf("argv[1]: %s\n", argv[1]);
-    printf("argv[2]: %s\n", argv[2]);
-    printf("sockfd : %d\n", csock.sd);
-
     inet_pton(AF_INET, argv[1], &iaddr);
     addr.sin_addr.s_addr = iaddr;
     addr.sin_port        = htons(port);
     addr.sin_family      = AF_INET;
 
-    inet_ntop(AF_INET, &iaddr, buff, sizeof(struct sockaddr_in));
-    LOG_DEBUG("Connecting to server %s [%d]\n",buff, iaddr);
     microtcp_connect(&csock,(struct sockaddr*)&addr,sizeof(addr));
 
     LOG_DEBUG("Sucessfully connected to server!\n\n\n");
-    
     LOG_DEBUG("calling SHUT_WR on client socket.\n");
     microtcp_shutdown(&csock,SHUT_WR);
 

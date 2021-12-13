@@ -49,7 +49,8 @@
 #include <errno.h>
 #include "../lib/microtcp.h"
 
-int seqbase;
+uint32_t seqbase;
+uint32_t ackbase; 
 
 void strctrl(uint16_t cbits){
 
@@ -73,25 +74,25 @@ void strctrl(uint16_t cbits){
  * 
  * @param tcph header must be in network byte order
  */
-void print_tcp_header(microtcp_header_t * tcph){
+void print_tcp_header(microtcp_sock_t * sock, microtcp_header_t * tcph){
 
-	static int counter = 0;
 
 	/** TODO: future_use{0, 1, 2} */
 
-    if ( !counter )
+    if ( !seqbase ) {
+
         seqbase = ntohl(tcph->seq_number);
+        ackbase = sock->seq_number;
+    }
 
-    printf("\n\033[1mTCP-header#%d\033[0m\n", counter);
-    printf("  * \033[4mseq#\033[0m = \033[3m%d\033[0m\n", ntohl(tcph->seq_number) - seqbase);
-    printf("  * \033[4mack#\033[0m = %d\n", ntohl(tcph->ack_number));
-    printf("  * \033[4mctrl\033[0m = %d - ", ntohs(tcph->control));
+    printf("\n\033[1mTCP-header\033[0m\n");
+    printf("  * \033[4mseq#\033[0m = \033[3m%u\033[0m --- ( %u )\n", ntohl(tcph->seq_number) - seqbase, ntohl(tcph->seq_number));
+    printf("  * \033[4mack#\033[0m = \033[3m%u\033[0m --- ( %u )\n", ntohl(tcph->ack_number) - ackbase, ntohl(tcph->ack_number));
+    printf("  * \033[4mctrl\033[0m = %u --- ", ntohs(tcph->control));
 	strctrl(ntohs(tcph->control));
-    printf("  * \033[4mwind\033[0m = %d\n", ntohs(tcph->window));
-    printf("  * \033[4mdata\033[0m = %d\n", ntohl(tcph->data_len));
-    printf("  * \033[4mcsum\033[0m = %d\n\n", ntohl(tcph->checksum));
-
-	++counter;
+    printf("  * \033[4mwind\033[0m = %u\n", ntohs(tcph->window));
+    printf("  * \033[4mdata\033[0m = %u\n", ntohl(tcph->data_len));
+    printf("  * \033[4mcsum\033[0m = %u\n\n", ntohl(tcph->checksum));
 }
 
 #define __FILENAME__   \

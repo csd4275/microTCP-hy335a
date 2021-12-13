@@ -57,7 +57,7 @@ void _cleanup(int status, void * recvbuf){
  * @param paysz Payload (data) size
  * @param payld Payload (data)
  */
-void _prepare_send_header(microtcp_sock_t * sock, microtcp_header_t * tcph, uint16_t ctrlb, uint32_t paysz, const void * payld){
+void _preapre_send_tcph(microtcp_sock_t * sock, microtcp_header_t * tcph, uint16_t ctrlb, uint32_t paysz, const void * payld){
 
 	if ( !sock ) { // debug only
 
@@ -71,7 +71,7 @@ void _prepare_send_header(microtcp_sock_t * sock, microtcp_header_t * tcph, uint
 		check(-1);
 	}
 
-	if ( !ctrlb || (ctrlb == 3) ) {
+	if ( (ctrlb == 3) ) {  // [SYN, FIN]
 
 		LOG_DEBUG("'ctrlb' ---> ");
 		strctrl(ctrlb);
@@ -83,7 +83,23 @@ void _prepare_send_header(microtcp_sock_t * sock, microtcp_header_t * tcph, uint
 	tcph->control    = htons(ctrlb);
 	tcph->window     = htons(sock->curr_win_size);
 	tcph->data_len   = htonl(paysz);
-	tcph->checksum   = htonl(crc32(payld, paysz));
+	tcph->checksum   = htonl( (paysz) ? crc32(payld, paysz) : 0U );
+}
+
+void _handle_recv_tcph(microtcp_header_t * tcph){
+
+	if ( !tcph ) {  // debug only, else error codes
+
+		LOG_DEBUG("'tcph' ---> NULL\n");
+		check(-1);
+	}
+
+	tcph->seq_number = ntohl(tcph->seq_number);
+	tcph->ack_number = ntohl(tcph->ack_number);
+	tcph->control    = ntohs(tcph->control);
+	tcph->window     = ntohs(tcph->window);
+	tcph->data_len   = ntohl(tcph->data_len);
+	tcph->checksum   = ntohl(tcph->checksum);
 }
 
 int _timeout(int sockfd, int too){  // sockfd, timeout-option
@@ -157,14 +173,14 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 	check(on_exit(_cleanup, tbuff));
 
 	tcph.seq_number = htonl(socket->seq_number);
-	tcph.window     = htonl(MICROTCP_RECVBUF_LEN);
+	tcph.window     = htons(MICROTCP_RECVBUF_LEN);
 	tcph.control    = htons(CTRL_SYN);
 	socket->recvbuf = tbuff;
 
 	check(send(socket->sd, &tcph, sizeof(tcph), 0));   // send SYN
 	check(recv(socket->sd, &tcph, sizeof(tcph), 0));   // recv SYNACK
 
-	/** TODO: cwnd handling */
+	print_tcp_header(socket, &tcph);
 
 	/** SYNACK **/
 	if ( ntohs(tcph.control) != (CTRL_SYN | CTRL_ACK) ) {
@@ -214,7 +230,7 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 	check(recvfrom(socket->sd, &tcph, sizeof(tcph), 0, address, &address_len));
 	check(connect(socket->sd, address, address_len));
 
-	print_tcp_header(&tcph);
+	print_tcp_header(socket, &tcph);
 
 	if ( ntohs(tcph.control) != CTRL_SYN ) {
 
@@ -224,14 +240,11 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 		return -(EXIT_FAILURE);
 	}
 
-	socket->state      = SYN_RCVD;
 	socket->sendbuflen = ntohs(tcph.window);
 	socket->ack_number = ntohl(tcph.seq_number) + 1U;
 
 	++socket->packets_received;
 	++socket->bytes_received;
-
-	/** TODO: cwnd */
 
 	tcph.seq_number = htonl(socket->seq_number);
 	tcph.ack_number = htonl(socket->ack_number);
@@ -241,7 +254,7 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 	check(send(socket->sd, &tcph, sizeof(tcph), 0));
 	check(recv(socket->sd, &tcph, sizeof(tcph), 0));
 
-	print_tcp_header(&tcph);
+	print_tcp_header(socket, &tcph);
 
 	if ( ( ntohs(tcph.control) ) != CTRL_ACK ) {
 
@@ -275,15 +288,12 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 		microtcp_header_t ack_header;
 		ack_header.control = htons(CTRL_ACK);
 		ack_header.ack_number = htonl(socket->ack_number);
-		printf("Sending ACK\n");
 		check(send(socket->sd,(void*)&ack_header,sizeof(ack_header),0));
 		
 		if(socket->state==CLOSING_BY_PEER){
-			printf("state is CBP mtcp_shut called (how == 1)\n");
 			microtcp_shutdown(socket, SHUT_WR);
 			return EXIT_SUCCESS;
 		}else if(socket->state==CLOSING_BY_HOST){
-			printf("state is CBH mtcp_shut called (how == 2)\n");
 			microtcp_shutdown(socket,SHUT_RDWR);
 		}else{
 			return -(EXIT_FAILURE);
@@ -298,24 +308,19 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 		fin_ack.ack_number = htonl(socket->ack_number);
 		fin_ack.control = htons(CTRL_FIN | CTRL_ACK);
 		/* Send FIN/ACK */
-		printf("Sending ACK\n");
 		check(send(socket->sd, (void*)&fin_ack, sizeof(fin_ack), 0));
 		/* Receive ACK for previous FINACK */
-		printf("Waiting for response..\n");
 		check(recv(socket->sd, (void*)&ack, sizeof(ack), 0));
 
 		ack.control = ntohs(ack.control);
 
 		/* Check if the received package is an ACK (and the correct ACK)*/
 		if(ack.control & CTRL_ACK) {
-			printf("Response is indeed ACK\n");
 			/** TODO: Check if ack is seq + 1 */
 			if(socket->state == ESTABLISHED) {
-				printf("State is now CBH\n");
 				socket->state = CLOSING_BY_HOST;
 			}
 			else if(socket->state == CLOSING_BY_PEER) {
-				printf("State is CBP so calling SHUT_RDWR\n");
 				microtcp_shutdown(socket, SHUT_RDWR);
 			}
 		}
@@ -335,53 +340,51 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t length,
                int flags)
 {
-	char tbuff[MICROTCP_HEADER_SIZE + length];  // c99 and onwards
+	uint8_t tbuff[MICROTCP_HEADER_SIZE + length];  // c99 and onwards --- can't be large (test only)
 
 	microtcp_header_t tcph;
 	ssize_t ret;
 	int sockfd;
 
+	size_t bytes_to_send;
+	size_t chunks;
+	size_t index;
+	size_t tmp;
+
 
 	sockfd = socket->sd;
 
-	/** TODO: fragmentation control */
-	/** TODO: congestion & flow control */
+	while ( length ) {
 
+		tmp = MIN2(socket->cwnd, socket->sendbuflen);
+		bytes_to_send = MIN2(length, tmp);
+		chunks = bytes_to_send / MICROTCP_MSS;
 
+		for ( index = 0UL; index < chunks; ++index ) {
 
-	check( send(sockfd, tbuff, length, flags) );
-	_timeout(sockfd, TIOUT_ENABLE);
+			uint8_t tbuff[MICROTCP_HEADER_SIZE + MICROTCP_MSS];
 
-	for (;;) {
+			_preapre_send_tcph(socket, &tcph, 0, MICROTCP_MSS, buffer + (index * MICROTCP_MSS));  // (void *) arithmetic ---> GNU C
+			memcpy(tbuff, &tcph, MICROTCP_HEADER_SIZE);
+			memcpy(tbuff + MICROTCP_HEADER_SIZE, buffer + (index * MICROTCP_MSS), MICROTCP_MSS);
 
-		ret = recv(sockfd, &tcph, sizeof(tcph), 0);
-
-		if ( ret < 0 ) {
-
-			if ( (ret == EAGAIN) || (ret == EWOULDBLOCK) ) {
-
-				// SLOWSTART enabled
-				LOG_DEBUG("![TIMEOUT]!\n");
-
-				socket->state = SLOW_START;
-				socket->ssthresh = socket->cwnd / 2;
-				socket->cwnd = MIN2(MICROTCP_MSS, socket->ssthresh);
-
-				/** TODO: what if the other side has crashed ? [infinite loop + cwnd = 0]*/
-				// _timeout(sockfd, !TIOUT_ENABLE);  // solution1, return to BLOCKING (?)
-				// solution2: increase timeout
-				if ( !socket->cwnd ) {
-
-					LOG_DEBUG("cwnd = 0\n");
-					return -(EXIT_FAILURE);
-				}
-
-				continue;
-			}
-			else
-				return -(EXIT_FAILURE);
+			send(sockfd, tbuff, MICROTCP_MSS, flags);
 		}
+
+		// semi-filled chunk
+		if ( bytes_to_send % MICROTCP_MSS ) {
+
+			++chunks;
+			// send(sockfd, buf, sz,flags);
+		}
+
+		/** TODO: Retransmissions */
+		/** TODO: Control Flow */
+		/** TODO: Congestion control */
+
+		length -= bytes_to_send;
 	}
+	
 
 	return EXIT_SUCCESS;
 }
