@@ -31,13 +31,14 @@
 #define CTRL_FIN ( 1 << 0 )
 #define CTRL_SYN ( 1 << 1 )
 #define CTRL_RST ( 1 << 2 )
-#define CTRL_ACK ( 1 << 4 )
+#define CTRL_ACK ( 1 << 3 )
 
+#define TIOUT_ENABLE 1
 
 /*
  * Several useful constants
  */
-#define MICROTCP_ACK_TIMEOUT_US 200000
+#define MICROTCP_ACK_TIMEOUT_US 200000L
 #define MICROTCP_MSS 1400
 #define MICROTCP_RECVBUF_LEN 8192
 #define MICROTCP_WIN_SIZE MICROTCP_RECVBUF_LEN
@@ -54,12 +55,16 @@ typedef enum
 {
   INVALID,
   LISTEN,
-  SYN_RCVD,
+  SLOW_START,
+  CONG_AVOID,
+  SYN_RCVD,  /** TODO: remove */
   ESTABLISHED,
   CLOSING_BY_PEER,
   CLOSING_BY_HOST,
   CLOSED,
 } mircotcp_state_t;
+
+/** TODO: handle better 'INVALID' state (set only upon error) */
 
 
 /**

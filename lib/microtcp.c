@@ -31,7 +31,12 @@
 #include <sys/types.h>
 
 
-static void _cleanup(int status, void * recvbuf){
+/** TODO: move all helper functions to utils/helper.h and utils/helper.c */
+
+#define MICROTCP_HEADER_SIZE sizeof(microtcp_header_t)
+#define MIN2(x, y) ( (x > y) ? y : x )
+
+void _cleanup(int status, void * recvbuf){
 
 	free(recvbuf);
 
@@ -42,6 +47,64 @@ static void _cleanup(int status, void * recvbuf){
 
 	/** TODO: terminate connections ? */
 }
+
+/**
+ * @brief Prepare the microTCP header for a packet to get send to the network
+ * 
+ * @param sock A valid microTCP socket handle
+ * @param tcph microTCP header
+ * @param ctrl Control bits
+ * @param paysz Payload (data) size
+ * @param payld Payload (data)
+ */
+void _prepare_send_header(microtcp_sock_t * sock, microtcp_header_t * tcph, uint16_t ctrlb, uint32_t paysz, const void * payld){
+
+	if ( !sock ) { // debug only
+
+		LOG_DEBUG("'sock' ---> NULL\n");
+		check(-1);
+	}
+
+	if ( !tcph ) {  // debug only
+
+		LOG_DEBUG("'tcph' ---> NULL\n");
+		check(-1);
+	}
+
+	if ( !ctrlb || (ctrlb == 3) ) {
+
+		LOG_DEBUG("'ctrlb' ---> ");
+		strctrl(ctrlb);
+		check(-1);
+	}
+
+	tcph->seq_number = htonl(sock->seq_number);
+	tcph->ack_number = htonl(sock->ack_number);
+	tcph->control    = htons(ctrlb);
+	tcph->window     = htons(sock->curr_win_size);
+	tcph->data_len   = htonl(paysz);
+	tcph->checksum   = htonl(crc32(payld, paysz));
+}
+
+int _timeout(int sockfd, int too){  // sockfd, timeout-option
+
+	struct timeval to;  // timeout
+
+	to.tv_sec = 0L;
+
+	if ( too == TIOUT_ENABLE )
+		to.tv_usec = MICROTCP_ACK_TIMEOUT_US;
+	else  // timeout not-set
+		to.tv_usec = 0L;
+	
+	check( setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &to, sizeof(to)) );
+
+	return EXIT_SUCCESS;
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////
+
 
 microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 {
@@ -269,10 +332,58 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 	}
 }
 
-ssize_t microtcp_send(microtcp_sock_t * socket, const void *buffer, size_t length,
+ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t length,
                int flags)
 {
-	/* Your code here */
+	char tbuff[MICROTCP_HEADER_SIZE + length];  // c99 and onwards
+
+	microtcp_header_t tcph;
+	ssize_t ret;
+	int sockfd;
+
+
+	sockfd = socket->sd;
+
+	/** TODO: fragmentation control */
+	/** TODO: congestion & flow control */
+
+
+
+	check( send(sockfd, tbuff, length, flags) );
+	_timeout(sockfd, TIOUT_ENABLE);
+
+	for (;;) {
+
+		ret = recv(sockfd, &tcph, sizeof(tcph), 0);
+
+		if ( ret < 0 ) {
+
+			if ( (ret == EAGAIN) || (ret == EWOULDBLOCK) ) {
+
+				// SLOWSTART enabled
+				LOG_DEBUG("![TIMEOUT]!\n");
+
+				socket->state = SLOW_START;
+				socket->ssthresh = socket->cwnd / 2;
+				socket->cwnd = MIN2(MICROTCP_MSS, socket->ssthresh);
+
+				/** TODO: what if the other side has crashed ? [infinite loop + cwnd = 0]*/
+				// _timeout(sockfd, !TIOUT_ENABLE);  // solution1, return to BLOCKING (?)
+				// solution2: increase timeout
+				if ( !socket->cwnd ) {
+
+					LOG_DEBUG("cwnd = 0\n");
+					return -(EXIT_FAILURE);
+				}
+
+				continue;
+			}
+			else
+				return -(EXIT_FAILURE);
+		}
+	}
+
+	return EXIT_SUCCESS;
 }
 
 ssize_t microtcp_recv(microtcp_sock_t * socket, void * buffer, size_t length, int flags)

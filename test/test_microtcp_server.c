@@ -37,6 +37,7 @@ void check_main_input(int argc, char ** argv);
 int main(int argc, char ** argv)
 {
     struct sockaddr_in addr;
+    struct timeval tv;
     uint16_t port;
 
     int buff_;
@@ -56,6 +57,13 @@ int main(int argc, char ** argv)
     else
         exit(EXIT_FAILURE);
 
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port        = htons(atoi(argv[1]));
+    addr.sin_family      = AF_INET;
+
+    check(microtcp_bind(&ssock, (struct sockaddr *)(&addr), sizeof(addr)));
+    check(microtcp_accept(&ssock, &addr, sizeof(addr)));
+
     /////////////////////////////////////////////////////
     printf("socket options:\n");
     sockopt = sizeof(buff_);
@@ -67,14 +75,13 @@ int main(int argc, char ** argv)
     printf("  - SO_SNDLOWAT  = %d\n", buff_);
     check(getsockopt(ssock.sd, SOL_SOCKET, SO_RCVLOWAT, &buff_, &sockopt));
     printf("  - SO_RCVLOWAT  = %d\n", buff_);
+    sockopt = sizeof(tv);
+    check(getsockopt(ssock.sd, SOL_SOCKET, SO_RCVTIMEO, &tv, &sockopt));
+    printf("  - SO_RCVTIMEO  = %lds%ldus\n", tv.tv_sec, tv.tv_usec);
+    sockopt = sizeof(buff_);
+    check(getsockopt(ssock.sd, SOL_SOCKET, SO_INCOMING_CPU, &buff_, &sockopt))
+    printf("  - INCOMING_CPU = %d\n", buff_);
     /////////////////////////////////////////////////////
-
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr.sin_port        = htons(atoi(argv[1]));
-    addr.sin_family      = AF_INET;
-
-    check(microtcp_bind(&ssock, (struct sockaddr *)(&addr), sizeof(addr)));
-    check(microtcp_accept(&ssock, &addr, sizeof(addr)));
 
     for (;;) {
 

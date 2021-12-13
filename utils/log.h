@@ -51,7 +51,7 @@
 
 int seqbase;
 
-static void strctrl(uint16_t cbits){
+void strctrl(uint16_t cbits){
 
 	if ( cbits & CTRL_FIN )
 		printf("[\033[94mFIN\033[0m]");
@@ -69,9 +69,9 @@ static void strctrl(uint16_t cbits){
 }
 
 /**
- * @brief 
+ * @brief Print the microTCP header (host-byte-order)
  * 
- * @param tcph TCP header must be in network byte order
+ * @param tcph header must be in network byte order
  */
 void print_tcp_header(microtcp_header_t * tcph){
 

@@ -31,7 +31,7 @@
  * @return the CRC-32 result
  */
 static inline uint32_t
-update_crc32 (uint32_t crc, const uint8_t *data, size_t len)
+update_crc32 (uint32_t crc, const uint8_t * data, uint32_t len)
 {
   static const uint32_t crc32_lut[256] =
     { 0x00000000L, 0x77073096L, 0xEE0E612CL, 0x990951BAL, 0x076DC419L,
@@ -88,9 +88,9 @@ update_crc32 (uint32_t crc, const uint8_t *data, size_t len)
         0x2D02EF8DL };
 
   register uint32_t i;
-  for (i = 0; i < len; i++) {
+  for (i = 0; i < len; i++)
     crc = (crc >> 8) ^ crc32_lut[(crc ^ data[i]) & 0xff];
-  }
+
   return crc;
 }
 
@@ -101,7 +101,7 @@ update_crc32 (uint32_t crc, const uint8_t *data, size_t len)
  * @return the CRC-32 of the buffer
  */
 static inline uint32_t
-crc32 (const uint8_t *buf, size_t len)
+crc32 (const uint8_t * buf, uint32_t len)
 {
   unsigned int crc = update_crc32 (0xffffffff, buf, len) ^ 0xffffffff;
   return crc;
