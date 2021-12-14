@@ -71,7 +71,7 @@ void _preapre_send_tcph(microtcp_sock_t * sock, microtcp_header_t * tcph, uint16
 		check(-1);
 	}
 
-	if ( (ctrlb == 3) ) {  // [SYN, FIN]
+	if ( (ctrlb == 3) ) {  // [SYN, FIN] together
 
 		LOG_DEBUG("'ctrlb' ---> ");
 		strctrl(ctrlb);
@@ -366,18 +366,20 @@ ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t leng
 		bytes_to_send = MIN2(length, tmp);
 		chunks = bytes_to_send / MICROTCP_MSS;
 
-		LOG_DEBUG("\e[1mlength = %lu\e[0m\n", length);
-		LOG_DEBUG(" > chunks = %lu\n", chunks);
-		LOG_DEBUG(" > bytes_to_send = %lu\n", bytes_to_send);
+		LOG_DEBUG("\n\e[1mlength = %lu\e[0m\n"\
+		          " > chunks = %lu\n"\
+				  " > bytes_to_send = %lu\n", length, chunks, bytes_to_send);
 
 		for ( index = 0UL; index < chunks; ++index ) {
 
 			tmp = buffer + (index * MICROTCP_MSS);  // (void *) arithmetic ---> GNU C
+
 			_preapre_send_tcph(socket, &tcph, 0U, tmp, MICROTCP_MSS);
 			memcpy(tbuff, &tcph, MICROTCP_HEADER_SIZE);
 			memcpy(tbuff + MICROTCP_HEADER_SIZE, tmp, MICROTCP_MSS);
 
-			check(send(sockfd, tbuff, MICROTCP_MSS, flags));
+			check(send(sockfd, tbuff, MICROTCP_MSS + MICROTCP_HEADER_SIZE, flags));
+			socket->seq_number += MICROTCP_MSS;
 		}
 
 		// semi-filled chunk
@@ -390,21 +392,26 @@ ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t leng
 			memcpy(tbuff, &tcph, MICROTCP_HEADER_SIZE);
 			memcpy(tbuff + MICROTCP_HEADER_SIZE, tmp, bytes_to_send);
 
-			check(send(sockfd, tbuff, bytes_to_send, flags));
+			check(send(sockfd, tbuff, bytes_to_send + MICROTCP_HEADER_SIZE, flags));
+			socket->seq_number += bytes_to_send;
 		}
 
+		/** TODO: recv() every ACK/chunk */
+
 		/** TODO: Retransmissions */
-		/** TODO: Control Flow */
+		/** TODO: Flow Control */
 		/** TODO: Congestion control */
 
 		length -= bytes_to_send;
 	}
-	
+
 
 	return EXIT_SUCCESS;
 }
 
 ssize_t microtcp_recv(microtcp_sock_t * socket, void * buffer, size_t length, int flags)
 {
-	/* Your code here */
+	/** TODO: Flow Control */
+	/** TODO: Packet reordering */
+	/** TODO: Acknowledgements */
 }

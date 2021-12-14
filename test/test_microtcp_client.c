@@ -51,6 +51,10 @@ main(int argc, char **argv)
     microtcp_connect(&csock,(struct sockaddr*)&addr,sizeof(addr));
 
     LOG_DEBUG("Sucessfully connected to server!\n\n\n");
+
+    microtcp_send(&csock, "Pousth Bisia!!!", 16UL, 0);
+    microtcp_send(&csock, "Papastamo GAmiesai!1!!1!", 25UL, 0);
+
     LOG_DEBUG("calling SHUT_WR on client socket.\n");
     microtcp_shutdown(&csock,SHUT_WR);
 

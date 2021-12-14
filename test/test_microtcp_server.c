@@ -39,9 +39,7 @@ int main(int argc, char ** argv)
     struct sockaddr_in addr;
     struct timeval tv;
     uint16_t port;
-
-    int buff_;
-    int sockopt;
+    uint8_t  buff[1500];
 
     microtcp_sock_t ssock;
     microtcp_header_t tcph;
@@ -64,10 +62,12 @@ int main(int argc, char ** argv)
     check(microtcp_bind(&ssock, (struct sockaddr *)(&addr), sizeof(addr)));
     check(microtcp_accept(&ssock, &addr, sizeof(addr)));
 
-    for (;;) {
+    memset(buff, 0, 1500UL);
 
-        check( recv(ssock.sd, &tcph, sizeof(tcph), 0) );
-        print_tcp_header(&ssock, &tcph);
+    for (int ret;;) {
+
+        check( recv(ssock.sd, &buff, 1500UL, 0) );
+        memcpy(&tcph, buff, sizeof(microtcp_header_t));
 
         if ( ntohs(tcph.control) == (CTRL_FIN | CTRL_ACK) ) {
 
@@ -75,8 +75,9 @@ int main(int argc, char ** argv)
             break;
         }
         else {
-
-            // check( send(ssock.fd, ) );
+    
+            LOG_DEBUG("recv()ed payload ---> %s\n", buff + sizeof(microtcp_header_t));
+            print_tcp_header(&ssock, &buff);
         }
     }
 

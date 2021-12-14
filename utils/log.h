@@ -70,7 +70,8 @@ void strctrl(uint16_t cbits){
 }
 
 /**
- * @brief Print the microTCP header (host-byte-order)
+ * @brief Print the microTCP header (host-byte-order). This function must be
+ * used to print - only - receiving packets!
  * 
  * @param tcph header must be in network byte order
  */
