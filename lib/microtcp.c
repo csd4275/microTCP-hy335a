@@ -57,7 +57,7 @@ void _cleanup(int status, void * recvbuf){
  * @param paysz Payload (data) size
  * @param payld Payload (data)
  */
-void _preapre_send_tcph(microtcp_sock_t * sock, microtcp_header_t * tcph, uint16_t ctrlb, uint32_t paysz, const void * payld){
+void _preapre_send_tcph(microtcp_sock_t * sock, microtcp_header_t * tcph, uint16_t ctrlb, const void * payld, uint32_t paysz){
 
 	if ( !sock ) { // debug only
 
@@ -140,7 +140,9 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 	sock.seq_number = rand();
 	sock.cwnd       = MICROTCP_INIT_CWND;
 	sock.ssthresh   = MICROTCP_INIT_SSTHRESH;
-
+	
+	// debug
+	ackbase = sock.seq_number;
 	/** TODO: on_exit() -> free resources - call shutdown() */
 
 	return sock;
@@ -180,6 +182,8 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 	check(send(socket->sd, &tcph, sizeof(tcph), 0));   // send SYN
 	check(recv(socket->sd, &tcph, sizeof(tcph), 0));   // recv SYNACK
 
+	// debug
+	seqbase = ntohl(tcph.seq_number);  // necessary for print_tcp_header()
 	print_tcp_header(socket, &tcph);
 
 	/** SYNACK **/
@@ -230,6 +234,8 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 	check(recvfrom(socket->sd, &tcph, sizeof(tcph), 0, address, &address_len));
 	check(connect(socket->sd, address, address_len));
 
+	// debug
+	seqbase = ntohl(tcph.seq_number);  // necessary for print_tcp_header()
 	print_tcp_header(socket, &tcph);
 
 	if ( ntohs(tcph.control) != CTRL_SYN ) {
@@ -340,16 +346,16 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t length,
                int flags)
 {
-	uint8_t tbuff[MICROTCP_HEADER_SIZE + length];  // c99 and onwards --- can't be large (test only)
+	uint8_t tbuff[MICROTCP_HEADER_SIZE + MICROTCP_MSS];  // c99 and onwards --- problem for larger MSS
 
 	microtcp_header_t tcph;
 	ssize_t ret;
 	int sockfd;
 
-	size_t bytes_to_send;
-	size_t chunks;
-	size_t index;
-	size_t tmp;
+	uint64_t bytes_to_send;
+	uint64_t chunks;
+	uint64_t index;
+	uint64_t tmp;
 
 
 	sockfd = socket->sd;
@@ -360,22 +366,31 @@ ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t leng
 		bytes_to_send = MIN2(length, tmp);
 		chunks = bytes_to_send / MICROTCP_MSS;
 
+		LOG_DEBUG("\e[1mlength = %lu\e[0m\n", length);
+		LOG_DEBUG(" > chunks = %lu\n", chunks);
+		LOG_DEBUG(" > bytes_to_send = %lu\n", bytes_to_send);
+
 		for ( index = 0UL; index < chunks; ++index ) {
 
-			uint8_t tbuff[MICROTCP_HEADER_SIZE + MICROTCP_MSS];
-
-			_preapre_send_tcph(socket, &tcph, 0, MICROTCP_MSS, buffer + (index * MICROTCP_MSS));  // (void *) arithmetic ---> GNU C
+			tmp = buffer + (index * MICROTCP_MSS);  // (void *) arithmetic ---> GNU C
+			_preapre_send_tcph(socket, &tcph, 0U, tmp, MICROTCP_MSS);
 			memcpy(tbuff, &tcph, MICROTCP_HEADER_SIZE);
-			memcpy(tbuff + MICROTCP_HEADER_SIZE, buffer + (index * MICROTCP_MSS), MICROTCP_MSS);
+			memcpy(tbuff + MICROTCP_HEADER_SIZE, tmp, MICROTCP_MSS);
 
-			send(sockfd, tbuff, MICROTCP_MSS, flags);
+			check(send(sockfd, tbuff, MICROTCP_MSS, flags));
 		}
 
 		// semi-filled chunk
 		if ( bytes_to_send % MICROTCP_MSS ) {
 
+			tmp = buffer + (index * MICROTCP_MSS);  // (void *) arithmetic ---> GNU C
 			++chunks;
-			// send(sockfd, buf, sz,flags);
+
+			_preapre_send_tcph(socket, &tcph, 0U, tmp, bytes_to_send);
+			memcpy(tbuff, &tcph, MICROTCP_HEADER_SIZE);
+			memcpy(tbuff + MICROTCP_HEADER_SIZE, tmp, bytes_to_send);
+
+			check(send(sockfd, tbuff, bytes_to_send, flags));
 		}
 
 		/** TODO: Retransmissions */

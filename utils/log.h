@@ -79,15 +79,11 @@ void print_tcp_header(microtcp_sock_t * sock, microtcp_header_t * tcph){
 
 	/** TODO: future_use{0, 1, 2} */
 
-    if ( !seqbase ) {
-
-        seqbase = ntohl(tcph->seq_number);
-        ackbase = sock->seq_number;
-    }
+    int refack = ntohl(tcph->ack_number) - ackbase;
 
     printf("\n\033[1mTCP-header\033[0m\n");
     printf("  * \033[4mseq#\033[0m = \033[3m%u\033[0m --- ( %u )\n", ntohl(tcph->seq_number) - seqbase, ntohl(tcph->seq_number));
-    printf("  * \033[4mack#\033[0m = \033[3m%u\033[0m --- ( %u )\n", ntohl(tcph->ack_number) - ackbase, ntohl(tcph->ack_number));
+    printf("  * \033[4mack#\033[0m = \033[3m%u\033[0m --- ( %u )\n", ( refack > -1 ) ? refack : 0, ntohl(tcph->ack_number));
     printf("  * \033[4mctrl\033[0m = %u --- ", ntohs(tcph->control));
 	strctrl(ntohs(tcph->control));
     printf("  * \033[4mwind\033[0m = %u\n", ntohs(tcph->window));
