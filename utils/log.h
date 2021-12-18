@@ -102,13 +102,11 @@ static inline void _check(int retval, int line, const char * funct){
 
     if ( retval < 0 ) {
 
-		#ifdef ENABLE_DEBUG_MSG
         printf("\033[93m%d\033[0m::\033[0;91m%s\033[0m() failed: \033[4m%s\033[0m\n", line, funct, strerror(errno));
-        #endif
         exit(EXIT_FAILURE);
     }
 }
-#define LOG_DEBUG(M, ...)                                                       \
+#define LOG_DEBUG(M, ...)\
         fprintf(stderr, "\033[1m[\033[0;31mDEBUG\033[0;1m]\033[0m: \033[93m%s\033[0m::\033[93m%s\033[0m::\033[93m%d\033[0m -> " M "\n", __FILENAME__ , __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #else
 #define LOG_DEBUG(M, ...)

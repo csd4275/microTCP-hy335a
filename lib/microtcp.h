@@ -33,8 +33,6 @@
 #define CTRL_RST ( 1 << 2 )
 #define CTRL_ACK ( 1 << 3 )
 
-#define TIOUT_ENABLE 1
-
 /*
  * Several useful constants
  */

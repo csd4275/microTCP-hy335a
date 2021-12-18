@@ -66,22 +66,13 @@ int main(int argc, char ** argv)
 
     for (int ret;;) {
 
-        check( recv(ssock.sd, &buff, 1500UL, 0) );
-        memcpy(&tcph, buff, sizeof(microtcp_header_t));
+        check( microtcp_recv(&ssock, buff, 1500UL, 0) );
+        LOG_DEBUG("recv()ed payload ---> %s\n", buff);
 
-        if ( ntohs(tcph.control) == (CTRL_FIN | CTRL_ACK) ) {
-
-            LOG_DEBUG("Received FIN-ACK\n");
+        if ( !strcmp(buff, "END") )
             break;
-        }
-        else {
-    
-            LOG_DEBUG("recv()ed payload ---> %s\n", buff + sizeof(microtcp_header_t));
-            print_tcp_header(&ssock, &buff);
-        }
     }
 
-    microtcp_shutdown(&ssock, SHUT_RD);
     printf("Connection with host successfully closed!\n");
     return 0;
 }
