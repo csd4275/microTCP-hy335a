@@ -31,13 +31,19 @@
 #include <netinet/ip.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 void check_main_input(int argc, char ** argv);
 
 int main(int argc, char ** argv)
 {
+    int sockopt;
+    int optval;
+    int optsz;
+
     struct sockaddr_in addr;
     struct timeval tv;
+
     uint16_t port;
     uint8_t  buff[1500];
 
@@ -55,22 +61,29 @@ int main(int argc, char ** argv)
     else
         exit(EXIT_FAILURE);
 
+    optsz = sizeof(int);
+    check( getsockopt(ssock.sd, SOL_SOCKET, SO_RCVBUF, &optval, &optsz) );
+    printf("SO_RCVBUF = %d\n", optval);
+
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port        = htons(atoi(argv[1]));
     addr.sin_family      = AF_INET;
 
-    check(microtcp_bind(&ssock, (struct sockaddr *)(&addr), sizeof(addr)));
-    check(microtcp_accept(&ssock, &addr, sizeof(addr)));
-
+    check( microtcp_bind(&ssock, (struct sockaddr *)(&addr), sizeof(addr)) );
+    check( microtcp_accept(&ssock, (struct sockaddr *)(&addr), sizeof(addr)) );
     memset(buff, 0, 1500UL);
 
-    for (int ret;;) {
+    for (;;) {
 
-        check( microtcp_recv(&ssock, buff, 1500UL, 0) );
+        int64_t ret;
+
+        check( ret = microtcp_recv(&ssock, buff, 1500UL, 0) );
         LOG_DEBUG("recv()ed payload ---> %s\n", buff);
+        memset(buff, 0, ret);
+        // sleep(1U);
 
-        if ( !strcmp(buff, "END") )
-            break;
+        // connection will close with an error, due to shutdown()
+        /** TODO: fix that with shutdown()... think() */
     }
 
     printf("Connection with host successfully closed!\n");

@@ -28,10 +28,11 @@
 
 
 /** DEFINES **/
-#define CTRL_FIN ( 1 << 0 )
-#define CTRL_SYN ( 1 << 1 )
-#define CTRL_RST ( 1 << 2 )
-#define CTRL_ACK ( 1 << 3 )
+#define CTRL_XXX 0U
+#define CTRL_FIN ( 1U << 0 )
+#define CTRL_SYN ( 1U << 1 )
+#define CTRL_RST ( 1U << 2 )
+#define CTRL_ACK ( 1U << 3 )
 
 /*
  * Several useful constants
@@ -70,6 +71,10 @@ typedef enum
  *
  * NOTE: Fill free to insert additional fields.
  */
+
+/** TODO: fuck 'recvbuf', it's useless. Let's use the kernel's
+ * (UDP) built-in buffer.
+ */
 typedef struct
 {
   int sd;                        /**< The underline UDP socket descriptor */
@@ -77,7 +82,7 @@ typedef struct
   size_t init_win_size;          /**< The window size negotiated at the 3-way handshake */
   size_t curr_win_size;          /**< The current window size */
 
-  uint8_t * recvbuf;             /**< The *receive* buffer of the TCP
+  uint8_t * recvbuf __attribute__((deprecated));             /**< The *receive* buffer of the TCP
                                      connection. It is allocated during the connection establishment and
                                      is freed at the shutdown of the connection. This buffer is used
                                      to retrieve the data from the network. */
@@ -137,6 +142,15 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
                  socklen_t address_len);
 
+/**
+ * @brief 
+ * 
+ * @param socket A valid microTCP socket
+ * @param how IGNORED
+ * @return int 
+ * 
+ * @deprecated 'how' paramater is deprecated.
+ */
 int microtcp_shutdown(microtcp_sock_t * socket, int how);
 
 ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t length,

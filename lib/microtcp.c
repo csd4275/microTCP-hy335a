@@ -31,23 +31,10 @@
 #include <sys/types.h>
 
 
-/** TODO: move all helper functions to utils/helper.h and utils/helper.c */
-
 #define MICROTCP_HEADER_SIZE sizeof(microtcp_header_t)
 #define MIN2(x, y) ( (x > y) ? y : x )
 #define TIOUT_ENABLE 1
 
-void _cleanup(int status, void * recvbuf){
-
-	free(recvbuf);
-
-	if ( status == EXIT_SUCCESS )
-		LOG_DEBUG("EXIT_SUCCESS\n");
-	else
-		LOG_DEBUG("EXIT_FAILURE\n");
-
-	/** TODO: terminate connections ? */
-}
 
 /**
  * @brief Prepare the microTCP header for a packet to get send over the network
@@ -133,18 +120,25 @@ int _timeout(int sockfd, int too){
 
 
 //////////////////////////////////////////////////////////////////////////////////////
-/** TODO: implement statistics */
+/** TODO: implement byte and packet statistics */
 
 microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 {
 	microtcp_sock_t sock;
+
 	int sockfd;
+	int optval;
+	int optsz;
 
 
 	if ( type == SOCK_STREAM )
-		type = SOCK_DGRAM;
+		LOG_DEBUG("type of socket changed to 'SOCK_DGRAM'\n");
 
-	check(sockfd = socket(domain, type, protocol));
+	optsz  = sizeof(int);
+	optval = MICROTCP_RECVBUF_LEN;
+
+	check( sockfd = socket(domain, SOCK_DGRAM, protocol ));
+	check( setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &optval, optsz) );  // The kernel will double this amount
 	memset(&sock, 0, sizeof(sock));
 	srand(time(NULL) + getpid());
 
@@ -154,9 +148,8 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 	sock.cwnd       = MICROTCP_INIT_CWND;
 	sock.ssthresh   = MICROTCP_INIT_SSTHRESH;
 	
-	// debug
+	// debug - print_tcp_header()
 	ackbase = sock.seq_number;
-	/** TODO: on_exit() -> free resources - call shutdown() */
 
 	return sock;
 }
@@ -172,33 +165,27 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
                   socklen_t address_len)
 {
 	microtcp_header_t tcph;
-	void * tbuff;
+	int64_t sockfd;
 
 
-	check(connect(socket->sd, address, address_len));
+	if ( !socket ) {
 
-	if ( !( tbuff = malloc(MICROTCP_RECVBUF_LEN) ) ) {
-
-		socket->state = INVALID;
-		errno = ENOMEM;
-
+		errno = EINVAL;
 		return -(EXIT_FAILURE);
 	}
 
-	check(on_exit(_cleanup, tbuff));
+	check(connect(socket->sd, address, address_len));
 
 	tcph.seq_number = htonl(socket->seq_number);
 	tcph.window     = htons(MICROTCP_RECVBUF_LEN);
 	tcph.control    = htons(CTRL_SYN);
-	socket->recvbuf = tbuff;
 
 	check(send(socket->sd, &tcph, sizeof(tcph), 0));   // send SYN
 	check(recv(socket->sd, &tcph, sizeof(tcph), 0));   // recv SYNACK
 
-	// debug
+	// debug - print_tcp_header()
 	seqbase = ntohl(tcph.seq_number);  // necessary for print_tcp_header()
 	print_tcp_header(socket, &tcph);
-	//////////////////////////////
 
 	/** SYNACK **/
 	if ( ntohs(tcph.control) != (CTRL_SYN | CTRL_ACK) ) {
@@ -220,6 +207,7 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 	check(send(socket->sd, &tcph, sizeof(tcph), 0));  // send ACK
 	socket->state = ESTABLISHED;
 
+
 	return EXIT_SUCCESS;
 }
 
@@ -227,7 +215,6 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
                  socklen_t address_len)
 {
 	microtcp_header_t tcph;
-	void * tbuff;
 
 
 	/** TODO: convert that to switch(){...}, add more states */
@@ -235,16 +222,8 @@ int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
 	if ( socket->state != INVALID )
 		return -(EXIT_FAILURE);
 
-	if ( !( tbuff = malloc(MICROTCP_RECVBUF_LEN) ) ) {
-
-		errno = ENOMEM;
-		return -(EXIT_FAILURE);
-	}
-
-	socket->recvbuf = tbuff;
 	socket->state   = LISTEN;
 
-	check(on_exit(_cleanup, tbuff));
 	check(recvfrom(socket->sd, &tcph, sizeof(tcph), 0, address, &address_len));
 	check(connect(socket->sd, address, address_len));
 
@@ -364,6 +343,10 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t length,
                int flags)
 {
+	/** TODO: Retransmissions (timeout & 3dup ACKs) */
+	/** TODO: Flow Control */
+	/** TODO: Congestion control */
+
 	uint8_t tbuff[MICROTCP_HEADER_SIZE + MICROTCP_MSS];  // c99 and onwards --- problem for larger MSS
 
 	microtcp_header_t tcph;
@@ -375,7 +358,20 @@ ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t leng
 	uint64_t tmp;
 
 
+	if ( !socket ) {
+
+		errno = EINVAL;
+		return -(EXIT_FAILURE);
+	}
+
+	if ( (socket->state == INVALID) || (socket->state >= CLOSING_BY_PEER) ) {
+
+		errno = EINVAL;
+		return -(EXIT_FAILURE);
+	}
+
 	sockfd = socket->sd;
+	_timeout(sockfd, TIOUT_ENABLE);
 
 	while ( length ) {
 
@@ -389,11 +385,11 @@ ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t leng
 
 		for ( index = 0UL; index < chunks; ++index ) {
 
-			tmp = buffer + (index * MICROTCP_MSS);  // (void *) arithmetic ---> GNU C
+			tmp = (uint64_t)(buffer) + (index * MICROTCP_MSS);  // (void *) arithmetic ---> GNU C
 
-			_preapre_send_tcph(socket, &tcph, 0U, tmp, MICROTCP_MSS);
+			_preapre_send_tcph(socket, &tcph, 0U, (void *)(tmp), MICROTCP_MSS);
 			memcpy(tbuff, &tcph, MICROTCP_HEADER_SIZE);
-			memcpy(tbuff + MICROTCP_HEADER_SIZE, tmp, MICROTCP_MSS);
+			memcpy(tbuff + MICROTCP_HEADER_SIZE, (void *)(tmp), MICROTCP_MSS);
 
 			check(send(sockfd, tbuff, MICROTCP_MSS + MICROTCP_HEADER_SIZE, flags));
 			socket->seq_number += MICROTCP_MSS;
@@ -402,12 +398,12 @@ ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t leng
 		// semi-filled chunk
 		if ( bytes_to_send % MICROTCP_MSS ) {
 
-			tmp = buffer + (index * MICROTCP_MSS);  // (void *) arithmetic ---> GNU C
+			tmp = (uint64_t)(buffer) + (index * MICROTCP_MSS);  // (void *) arithmetic ---> GNU C
 			++chunks;
 
-			_preapre_send_tcph(socket, &tcph, 0U, tmp, bytes_to_send);
+			_preapre_send_tcph(socket, &tcph, CTRL_XXX, (void *)(tmp), bytes_to_send);
 			memcpy(tbuff, &tcph, MICROTCP_HEADER_SIZE);
-			memcpy(tbuff + MICROTCP_HEADER_SIZE, tmp, bytes_to_send);
+			memcpy(tbuff + MICROTCP_HEADER_SIZE, (void *)(tmp), bytes_to_send);
 
 			check(send(sockfd, tbuff, bytes_to_send + MICROTCP_HEADER_SIZE, flags));
 			socket->seq_number += bytes_to_send;
@@ -415,15 +411,25 @@ ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t leng
 
 		for ( index = 0UL; index < chunks; ++index ) {
 
-			/** TODO: Retransmissions */
-			/** TODO: Flow Control */
-			/** TODO: Congestion control */
-			check( recv(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0) );
-			print_tcp_header(socket, &tcph);
+			int64_t ret;
+
+			/** TODO: detect and handle triple-dupACK */
+
+			ret = recv(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0);
+
+			// TIMEOUT occured
+			if ( (ret < 0) && (errno == EAGAIN) ) {
+
+				/** TODO: congestion algorithm (cwnd, ssthresh, etc) */
+				LOG_DEBUG("timeout-occured\n");
+			}
+
 		}
 
 		length -= bytes_to_send;
 	}
+
+	_timeout(sockfd, !TIOUT_ENABLE);
 
 
 	return EXIT_SUCCESS;
@@ -431,11 +437,24 @@ ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t leng
 
 ssize_t microtcp_recv(microtcp_sock_t * socket, void * buffer, size_t length, int flags)
 {
-	uint8_t tbuff[MICROTCP_HEADER_SIZE + MICROTCP_MSS];  // c99 and onwards --- problem for larger MSS
+	uint8_t tbuff[MICROTCP_HEADER_SIZE + MICROTCP_MSS];  // c99 and onwards --- problem for larger MSS;
 	int64_t bytes_read;
 	microtcp_header_t tcph;
 	int sockfd;
 
+
+	if ( !socket ) {
+
+		errno = EINVAL;
+		return -(EXIT_FAILURE);
+	}
+
+	if ( (socket->state == INVALID) || (socket->state >= CLOSING_BY_PEER) ) {
+
+		errno = EINVAL;
+		return -(EXIT_FAILURE);
+	}
+	
 
 	sockfd = socket->sd;
 
@@ -448,7 +467,7 @@ ssize_t microtcp_recv(microtcp_sock_t * socket, void * buffer, size_t length, in
 
 		// what else?
 		microtcp_shutdown(socket, SHUT_RD);
-		socket->state = CLOSED;  /** TODO: check that */
+		socket->state = CLOSED;  /** TODO: think() */
 
 		return 0L;
 	}
@@ -467,3 +486,6 @@ ssize_t microtcp_recv(microtcp_sock_t * socket, void * buffer, size_t length, in
 
 	return bytes_read;
 }
+
+
+
