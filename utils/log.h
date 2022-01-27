@@ -67,6 +67,9 @@ void strctrl(uint16_t cbits){
 	if ( cbits & CTRL_ACK )
 		printf("[\033[94mACK\033[0m]");
 
+    if ( cbits & FRAGMENT )
+		printf("[\033[94mFRG\033[0m]");
+
 	printf("\n");
 }
 

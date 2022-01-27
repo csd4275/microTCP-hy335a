@@ -48,7 +48,9 @@
 
 
 /**
- * @brief Prepare the microTCP header for a packet to get send over the network
+ * @brief Initializes the microTCP header for a packet to get send over the network. By giving FRAGMENT
+ * in 'ctrlb', the packet (header) will be marked as fragmented. Putting CTRL_XXX in 'ctrlb' will not
+ * set any control bits in the header
  * 
  * @param sock A valid microTCP socket handle
  * @param tcph microTCP header
@@ -344,12 +346,14 @@ ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t leng
 	uint8_t tbuff[MICROTCP_HEADER_SIZE + MICROTCP_MSS];  // c99 and onwards --- problem for larger MSS
 
 	microtcp_header_t tcph;
-	int sockfd;
 
-	uint64_t bytes_to_send;
-	uint64_t chunks;
-	uint64_t index;
-	uint64_t tmp;
+	int sockfd;
+	int fflag;  // fragments flag
+
+	register uint64_t bytes_to_send;
+	register uint64_t chunks;
+	register uint64_t index;
+	register uint64_t tmp;
 
 
 	if ( !socket ) {
@@ -365,65 +369,77 @@ ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t leng
 	}
 
 	sockfd = socket->sd;
+	fflag  = 0;
+
+	if ( length > MIN2(MICROTCP_MSS, MIN2(socket->cwnd, socket->sendbuflen)) )
+		fflag = 0;
+	else
+		fflag = 1;
+
 	_timeout(sockfd, TIOUT_ENABLE);
 
+	while ( length ) {
 
-	tmp = MIN2(socket->cwnd, socket->sendbuflen);
-	bytes_to_send = MIN2(length, tmp);
-	chunks = bytes_to_send / MICROTCP_MSS;  // avoid IP-Fragmentation (break into fragments)
+		tmp = MIN2(socket->cwnd, socket->sendbuflen);
+		bytes_to_send = MIN2(length, tmp);
+		chunks = bytes_to_send / MICROTCP_MSS;  // avoid IP-Fragmentation (break into fragments)
 
-	LOG_DEBUG("\n\e[1mlength = %lu\e[0m\n"
-				" > chunks = %lu\n"
-				" > bytes_to_send = %lu\n", length, chunks, bytes_to_send);
+		LOG_DEBUG("\n\e[1mlength = %lu\e[0m\n"
+					" > chunks = %lu\n"
+					" > bytes_to_send = %lu\n", length, chunks, bytes_to_send);
 
-	for ( index = 0UL; index < chunks; ++index ) {
+		for ( index = 0UL; index < chunks; ++index ) {
 
-		tmp = (uint64_t)(buffer) + (index * MICROTCP_MSS);  // pointer arithmetic
+			tmp = (uint64_t)(buffer) + (index * MICROTCP_MSS);  // pointer arithmetic
 
-		_preapre_send_tcph(socket, &tcph, CTRL_XXX, (void *)(tmp), MICROTCP_MSS);
-		memcpy(tbuff, &tcph, MICROTCP_HEADER_SIZE);
-		memcpy(tbuff + MICROTCP_HEADER_SIZE, (void *)(tmp), MICROTCP_MSS);
+			_preapre_send_tcph(socket, &tcph, ( !fflag ) ? (fflag = FRAGMENT) : CTRL_XXX, (void *)(tmp), MICROTCP_MSS);
+			memcpy(tbuff, &tcph, MICROTCP_HEADER_SIZE);
+			memcpy(tbuff + MICROTCP_HEADER_SIZE, (void *)(tmp), MICROTCP_MSS);
 
-		check( send(sockfd, tbuff, MICROTCP_MSS + MICROTCP_HEADER_SIZE, flags) );
-		socket->seq_number += MICROTCP_MSS;
-	}
+			check( send(sockfd, tbuff, MICROTCP_MSS + MICROTCP_HEADER_SIZE, flags) );
+			socket->seq_number += MICROTCP_MSS;
 
-	bytes_to_send -= index * MICROTCP_MSS;
-
-	// semi-filled chunk
-	if ( bytes_to_send ) {
-
-		tmp = (uint64_t)(buffer) + (index * MICROTCP_MSS);  // pointer arithmetic
-		++chunks;
-
-		_preapre_send_tcph(socket, &tcph, CTRL_XXX, (void *)(tmp), bytes_to_send);
-		memcpy(tbuff, &tcph, MICROTCP_HEADER_SIZE);
-		memcpy(tbuff + MICROTCP_HEADER_SIZE, (void *)(tmp), bytes_to_send);
-
-		check( send(sockfd, tbuff, bytes_to_send + MICROTCP_HEADER_SIZE, flags) );
-		socket->seq_number += bytes_to_send;
-	}
-
-	for ( index = 0UL; index < chunks; ++index ) {
-
-		int64_t ret;
-
-		/** TODO: detect and handle triple-dupACK */
-
-		ret = recv(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0);
-
-		// TIMEOUT occured
-		if ( (ret < 0) && (errno == EAGAIN) ) {
-
-			/** TODO: implement congestion algorithm (cwnd, ssthresh, etc) */
-			LOG_DEBUG("timeout-occured\n");
+			/** TODO: congestion control - flow control */
 		}
 
+		length -= bytes_to_send;
+		bytes_to_send -= index * MICROTCP_MSS;
+
+		// semi-filled chunk
+		if ( bytes_to_send ) {
+
+			tmp = (uint64_t)(buffer) + (index * MICROTCP_MSS);  // pointer arithmetic
+
+			_preapre_send_tcph(socket, &tcph, ( !length && chunks) ? FRAGMENT : CTRL_XXX, (void *)(tmp), bytes_to_send);
+			memcpy(tbuff, &tcph, MICROTCP_HEADER_SIZE);
+			memcpy(tbuff + MICROTCP_HEADER_SIZE, (void *)(tmp), bytes_to_send);
+
+			check( send(sockfd, tbuff, bytes_to_send + MICROTCP_HEADER_SIZE, flags) );
+
+			socket->seq_number += bytes_to_send;
+			++chunks;
+		}
+
+		for ( index = 0UL; index < chunks; ++index ) {
+
+			int64_t ret;
+
+			/** TODO: detect and handle triple-dupACK */
+
+			ret = recv(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0);
+
+			// TIMEOUT occured
+			if ( (ret < 0) && (errno == EAGAIN) ) {
+
+				/** TODO: implement congestion algorithm (cwnd, ssthresh, etc) */
+				LOG_DEBUG("timeout-occured\n");
+				check(-1);
+			}
+
+		}
 	}
 
-	length -= bytes_to_send;
-
-	_timeout(sockfd, !TIOUT_ENABLE);
+	_timeout(sockfd, TIOUT_DISABLE);
 
 
 	return EXIT_SUCCESS;
@@ -434,7 +450,9 @@ ssize_t microtcp_recv(microtcp_sock_t * socket, void * buffer, size_t length, in
 	uint8_t tbuff[MICROTCP_HEADER_SIZE + MICROTCP_MSS];  // c99 and onwards --- problem for larger MSS;
 	int64_t bytes_read;
 	microtcp_header_t tcph;
+
 	int sockfd;
+	int old;
 
 
 	if ( !socket ) {
@@ -457,7 +475,15 @@ ssize_t microtcp_recv(microtcp_sock_t * socket, void * buffer, size_t length, in
 	print_tcp_header(socket, &tcph);
 	_ntoh_recvd_tcph(tcph);
 
-	if ( tcph.control & CTRL_FIN ) {
+	old = tcph.control;
+
+	if ( old & FRAGMENT ) {
+
+		check( bytes_read = recv(sockfd, tbuff, MICROTCP_HEADER_SIZE + MICROTCP_MSS, flags) );
+		//
+	}
+
+	if ( old & CTRL_FIN ) {
 
 		// what else?
 		// free_resources(); ?

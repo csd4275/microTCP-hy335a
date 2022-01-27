@@ -30,6 +30,8 @@
 #include "../lib/microtcp.h"
 #include "../utils/log.h"
 
+#define TEST_BYTES 3600
+
 int main(int argc, char **argv)
 {
     microtcp_sock_t csock;
@@ -50,17 +52,17 @@ int main(int argc, char **argv)
 
     microtcp_connect(&csock,(struct sockaddr*)&addr,sizeof(addr));
 
-    if ( !(frag_test = malloc(1600UL)) ) {
+    if ( !(frag_test = malloc(TEST_BYTES)) ) {
 
         perror("malloc() failed");
         exit(EXIT_FAILURE);
     }
 
-    memset(frag_test, 'a', 1600UL);
+    memset(frag_test, 'a', TEST_BYTES);
 
     check( microtcp_send(&csock, "Pousth Bisia!!!", 16UL, 0) );
     check( microtcp_send(&csock, "Papastamo GAmiesai!1!!1!", 25UL, 0) );
-    check( microtcp_send(&csock, frag_test, 1600UL, 0) );
+    check( microtcp_send(&csock, frag_test, TEST_BYTES, 0) );
 
     LOG_DEBUG("calling SHUT_WR on client socket.\n");
     microtcp_shutdown(&csock,SHUT_WR);

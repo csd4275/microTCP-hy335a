@@ -28,7 +28,9 @@
 
 
 /** DEFINES **/
-#define CTRL_XXX 0U
+#define FRAGMENT ( 1U << 5 )
+
+#define CTRL_XXX ( 0U )
 #define CTRL_FIN ( 1U << 0 )
 #define CTRL_SYN ( 1U << 1 )
 #define CTRL_RST ( 1U << 2 )
