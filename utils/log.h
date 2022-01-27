@@ -51,6 +51,7 @@
 
 uint32_t seqbase;
 uint32_t ackbase; 
+uint32_t packetno;
 
 void strctrl(uint16_t cbits){
 
@@ -82,14 +83,14 @@ void print_tcp_header(microtcp_sock_t * sock, microtcp_header_t * tcph){
 
     int refack = ntohl(tcph->ack_number) - ackbase;
 
-    printf("\n\033[1mTCP-header\033[0m\n");
-    printf("  * \033[4mseq#\033[0m = \033[3m%u\033[0m --- ( %u )\n", ntohl(tcph->seq_number) - seqbase, ntohl(tcph->seq_number));
-    printf("  * \033[4mack#\033[0m = \033[3m%u\033[0m --- ( %u )\n", ( refack > -1 ) ? refack : 0, ntohl(tcph->ack_number));
-    printf("  * \033[4mctrl\033[0m = %u --- ", ntohs(tcph->control));
+    printf("\n\033[1mTCP-header\033[31m#%u\033[0m\n", ++packetno);
+    printf("  - \033[4mseq#\033[0m = \033[3m%u\033[0m --- ( %u )\n", ntohl(tcph->seq_number) - seqbase, ntohl(tcph->seq_number));
+    printf("  - \033[4mack#\033[0m = \033[3m%u\033[0m --- ( %u )\n", ( refack > -1 ) ? refack : 0, ntohl(tcph->ack_number));
+    printf("  - \033[4mctrl\033[0m = %u --- ", ntohs(tcph->control));
 	strctrl(ntohs(tcph->control));
-    printf("  * \033[4mwind\033[0m = %u\n", ntohs(tcph->window));
-    printf("  * \033[4mdata\033[0m = %u\n", ntohl(tcph->data_len));
-    printf("  * \033[4mcsum\033[0m = %u\n\n", ntohl(tcph->checksum));
+    printf("  - \033[4mwind\033[0m = %u\n", ntohs(tcph->window));
+    printf("  - \033[4mdata\033[0m = %u\n", ntohl(tcph->data_len));
+    printf("  - \033[4mcsum\033[0m = %u\n\n", ntohl(tcph->checksum));
 }
 
 #define __FILENAME__   \
@@ -106,12 +107,13 @@ static inline void _check(int retval, int line, const char * funct){
         exit(EXIT_FAILURE);
     }
 }
+
 #define LOG_DEBUG(M, ...)\
         fprintf(stderr, "\033[1m[\033[0;31mDEBUG\033[0;1m]\033[0m: \033[93m%s\033[0m::\033[93m%s\033[0m::\033[93m%d\033[0m -> " M "\n", __FILENAME__ , __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #else
 #define LOG_DEBUG(M, ...)
 #define check(x)
-void print_tcp_header(microtcp_header_t * tcph){}
+void print_tcp_header(microtcp_header_t * tcph){return;}
 #endif
 
 #endif /* UTILS_LOG_H_ */

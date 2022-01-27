@@ -30,14 +30,14 @@
 #include "../lib/microtcp.h"
 #include "../utils/log.h"
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     microtcp_sock_t csock;
     struct sockaddr_in addr;
     uint16_t port=atoi(argv[2]);
     uint32_t iaddr;
     char buff[32];
+    void *frag_test;
 
 
     client_check_main_input(argc, argv);
@@ -50,8 +50,17 @@ main(int argc, char **argv)
 
     microtcp_connect(&csock,(struct sockaddr*)&addr,sizeof(addr));
 
+    if ( !(frag_test = malloc(1600UL)) ) {
+
+        perror("malloc() failed");
+        exit(EXIT_FAILURE);
+    }
+
+    memset(frag_test, 'a', 1600UL);
+
     check( microtcp_send(&csock, "Pousth Bisia!!!", 16UL, 0) );
     check( microtcp_send(&csock, "Papastamo GAmiesai!1!!1!", 25UL, 0) );
+    check( microtcp_send(&csock, frag_test, 1600UL, 0) );
 
     LOG_DEBUG("calling SHUT_WR on client socket.\n");
     microtcp_shutdown(&csock,SHUT_WR);
