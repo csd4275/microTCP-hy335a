@@ -84,7 +84,7 @@ typedef struct
   size_t init_win_size;          /**< The window size negotiated at the 3-way handshake */
   size_t curr_win_size;          /**< The current window size */
 
-  uint8_t * recvbuf __attribute__((deprecated));             /**< The *receive* buffer of the TCP
+  uint8_t * recvbuf;             /**< The *receive* buffer of the TCP
                                      connection. It is allocated during the connection establishment and
                                      is freed at the shutdown of the connection. This buffer is used
                                      to retrieve the data from the network. */
@@ -126,39 +126,57 @@ typedef struct
 
 microtcp_sock_t microtcp_socket(int domain, int type, int protocol);
 
-int microtcp_bind(microtcp_sock_t * socket, const struct sockaddr * address,
+int microtcp_bind(microtcp_sock_t * __restrict__ socket, const struct sockaddr * __restrict__ address,
                socklen_t address_len);
 
-int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
+int microtcp_connect(microtcp_sock_t * __restrict__ socket, const struct sockaddr * __restrict__ address,
                   socklen_t address_len);
 
 /**
  * Blocks waiting for a new connection from a remote peer.
  *
- * @param socket the socket structure
+ * @param socket a valid microTCP socket object
  * @param address pointer to store the address information of the connected peer
  * @param address_len the length of the address structure.
  * @return ATTENTION despite the original accept() this function returns
  * 0 on success or -1 on failure
  */
-int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
+int microtcp_accept(microtcp_sock_t * __restrict__ socket, struct sockaddr * __restrict__ address,
                  socklen_t address_len);
 
 /**
  * @brief 
  * 
- * @param socket A valid microTCP socket
+ * @param socket a valid microTCP socket object
  * @param how IGNORED
  * @return int 
  * 
  * @deprecated 'how' paramater is deprecated.
  */
-int microtcp_shutdown(microtcp_sock_t * socket, int how);
+int microtcp_shutdown(microtcp_sock_t *socket, int how);
 
-ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t length,
+/**
+ * @brief 
+ * 
+ * @param socket 
+ * @param buffer 
+ * @param length 
+ * @param flags NOT SUPPORTED
+ * @return ssize_t 
+ */
+ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __restrict__ buffer, size_t length,
                int flags);
 
-ssize_t microtcp_recv(microtcp_sock_t * socket, void * buffer, size_t length, int flags);
+/**
+ * @brief
+ * 
+ * @param socket a valid microTCP socket object
+ * @param buffer 
+ * @param length 
+ * @param flags NOT SUPPORTED
+ * @return if successfull, it returns the number of bytes read, else -1
+ */
+ssize_t microtcp_recv(microtcp_sock_t * __restrict__ socket, void * __restrict__ buffer, size_t length, int flags);
 
 
 #endif /* LIB_MICROTCP_H_ */

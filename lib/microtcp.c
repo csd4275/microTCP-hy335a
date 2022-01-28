@@ -33,14 +33,14 @@
 
 #define MICROTCP_HEADER_SIZE sizeof(microtcp_header_t)
 #define MIN2(x, y) ( (x > y) ? y : x )
-#define _ntoh_recvd_tcph(tcph)  \
+#define _ntoh_recvd_tcph(microtcp_header)  \
 								{\
-									tcph.seq_number = ntohl(tcph.seq_number);\
-									tcph.ack_number = ntohl(tcph.ack_number);\
-									tcph.control    = ntohs(tcph.control);\
-									tcph.window     = ntohs(tcph.window);\
-									tcph.data_len   = ntohl(tcph.data_len);\
-									tcph.checksum   = ntohl(tcph.checksum);\
+									microtcp_header.seq_number = ntohl(tcph.seq_number);\
+									microtcp_header.ack_number = ntohl(tcph.ack_number);\
+									microtcp_header.control    = ntohs(tcph.control);\
+									microtcp_header.window     = ntohs(tcph.window);\
+									microtcp_header.data_len   = ntohl(tcph.data_len);\
+									microtcp_header.checksum   = ntohl(tcph.checksum);\
 								}
 
 #define TIOUT_DISABLE  0
@@ -52,13 +52,14 @@
  * in 'ctrlb', the packet (header) will be marked as fragmented. Putting CTRL_XXX in 'ctrlb' will not
  * set any control bits in the header
  * 
- * @param sock A valid microTCP socket handle
+ * @param sock a valid microTCP socket handle
  * @param tcph microTCP header
- * @param ctrl Control bits
- * @param paysz Payload size
- * @param payld Payload
+ * @param ctrl control bits
+ * @param paysz payload size
+ * @param payld payload
  */
-static void _preapre_send_tcph(microtcp_sock_t * sock, microtcp_header_t * tcph, uint16_t ctrlb, const void * payld, uint32_t paysz){
+static void _preapre_send_tcph(microtcp_sock_t * __restrict__ sock, microtcp_header_t * __restrict__ tcph, uint16_t ctrlb,
+						const void * __restrict__ payld, uint32_t paysz){
 
 	#ifdef ENABLE_DEBUG_MSG
 	if ( !sock ) {
@@ -127,6 +128,19 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 	if ( type != SOCK_DGRAM )
 		LOG_DEBUG("type of socket changed to 'SOCK_DGRAM'\n");
 
+	bzero(&sock, sizeof(sock));
+	sock.recvbuf = (uint8_t *) malloc(MICROTCP_RECVBUF_LEN);
+
+	if ( !sock.recvbuf ) {
+
+		sock.sd    = -1;
+		sock.state = INVALID;
+		sock.state = CLOSED;
+		errno = ENOMEM;
+
+		return sock;
+	}
+
 	optsz  = sizeof(int);
 	optval = MICROTCP_RECVBUF_LEN;
 
@@ -136,7 +150,6 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 	srand(time(NULL) + getpid());
 
 	sock.sd         = sockfd;
-	sock.state      = INVALID;
 	sock.seq_number = rand();
 	sock.cwnd       = MICROTCP_INIT_CWND;
 	sock.ssthresh   = MICROTCP_INIT_SSTHRESH;
@@ -144,18 +157,20 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 	#ifdef ENABLE_DEBUG_MSG
 	ackbase = sock.seq_number;
 	#endif
+	
+	
 
 	return sock;
 }
 
-int microtcp_bind(microtcp_sock_t * socket, const struct sockaddr * address,
+int microtcp_bind(microtcp_sock_t * __restrict__ socket, const struct sockaddr * __restrict__ address,
                socklen_t address_len)
 {
 	check(bind(socket->sd, address, address_len));
 	return EXIT_SUCCESS;
 }
 
-int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
+int microtcp_connect(microtcp_sock_t * __restrict__ socket, const struct sockaddr * __restrict__ address,
                   socklen_t address_len)
 {
 	microtcp_header_t tcph;
@@ -206,7 +221,7 @@ int microtcp_connect(microtcp_sock_t * socket, const struct sockaddr * address,
 	return EXIT_SUCCESS;
 }
 
-int microtcp_accept(microtcp_sock_t * socket, struct sockaddr * address,
+int microtcp_accept(microtcp_sock_t * __restrict__ socket, struct sockaddr * __restrict__ address,
                  socklen_t address_len)
 {
 	microtcp_header_t tcph;
@@ -336,7 +351,7 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 	return EXIT_SUCCESS;
 }
 
-ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t length,
+ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __restrict__ buffer, size_t length,
                int flags)
 {
 	/** TODO: Retransmissions (timeout & 3dup ACKs) */
@@ -445,14 +460,16 @@ ssize_t microtcp_send(microtcp_sock_t * socket, const void * buffer, size_t leng
 	return EXIT_SUCCESS;
 }
 
-ssize_t microtcp_recv(microtcp_sock_t * socket, void * buffer, size_t length, int flags)
+ssize_t microtcp_recv(microtcp_sock_t * __restrict__ socket, void * __restrict__ buffer, size_t length, int flags)
 {
-	uint8_t tbuff[MICROTCP_HEADER_SIZE + MICROTCP_MSS];  // c99 and onwards --- problem for larger MSS;
-	int64_t bytes_read;
 	microtcp_header_t tcph;
-
 	int sockfd;
-	int old;
+
+	uint64_t index;
+	int64_t bytes_read;
+
+	uint8_t tbuff[MICROTCP_MSS + MICROTCP_HEADER_SIZE]; // c99 and onwards
+	uint8_t *recvb;
 
 
 	if ( !socket ) {
@@ -469,38 +486,46 @@ ssize_t microtcp_recv(microtcp_sock_t * socket, void * buffer, size_t length, in
 	
 
 	sockfd = socket->sd;
+	index  = 0UL;
 
-	check( bytes_read = recv(sockfd, tbuff, MICROTCP_HEADER_SIZE + MICROTCP_MSS, flags) );
-	memcpy(&tcph, tbuff, MICROTCP_HEADER_SIZE);
+	check( bytes_read = recv(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0) );
 	print_tcp_header(socket, &tcph);
 	_ntoh_recvd_tcph(tcph);
 
-	old = tcph.control;
-
-	if ( old & FRAGMENT ) {
-
-		check( bytes_read = recv(sockfd, tbuff, MICROTCP_HEADER_SIZE + MICROTCP_MSS, flags) );
-		//
-	}
-
-	if ( old & CTRL_FIN ) {
-
-		// what else?
-		// free_resources(); ?
-		// waht if we have data ?
-		microtcp_shutdown(socket, SHUT_RD);
-		socket->state = CLOSED;  /** TODO: think(); */
-
+	if ( !tcph.data_len )  // zero length packet
 		return 0L;
+
+	check( recv(sockfd, buffer + index, tcph.data_len, 0) );
+	index += tcph.data_len;
+
+	while ( index < length ) {
+
+		bytes_read = recv(sockfd, &tcph, MICROTCP_HEADER_SIZE, MSG_DONTWAIT);
+
+		if ( bytes_read < 0 ) {
+
+			if ( (errno != EAGAIN) && (errno != EWOULDBLOCK) )
+				return -(EXIT_FAILURE);
+		}
+
+		print_tcp_header(socket, &tcph);
+		_ntoh_recvd_tcph(tcph);
+
+		if ( !tcph.data_len )  // zero length packet
+			return 0L;
+
+		check( recv(sockfd, buffer + index, tcph.data_len, 0) );
+
+		index += tcph.data_len;
+		socket->ack_number += tcph.data_len;
+		tcph.seq_number = socket->seq_number;
+		tcph.ack_number = socket->ack_number;
+
+		_preapre_send_tcph(socket, &tcph, CTRL_ACK, NULL, 0U);
+		check( send(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0) );
 	}
 
-	memcpy(buffer, tbuff + MICROTCP_HEADER_SIZE, tcph.data_len);
-	socket->ack_number += tcph.data_len;
-
-	tcph.seq_number = socket->seq_number;
-	tcph.ack_number = socket->ack_number;
-	_preapre_send_tcph(socket, &tcph, CTRL_ACK, NULL, 0U);
-	check( send(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0) );
+	//
 
 	/** TODO: Flow Control */
 	/** TODO: Packet reordering */
