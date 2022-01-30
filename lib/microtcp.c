@@ -112,6 +112,7 @@ static int _timeout(int sockfd, int too){
 	return EXIT_SUCCESS;
 }
 
+static void cleanup();
 
 //////////////////////////////////////////////////////////////////////////////////////
 /** TODO: [!] implement byte and packet statistics [!] */
@@ -411,7 +412,7 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 			memcpy(tbuff, &tcph, MICROTCP_HEADER_SIZE);
 			memcpy(tbuff + MICROTCP_HEADER_SIZE, (void *)(tmp), MICROTCP_MSS);
 
-			check( send(sockfd, tbuff, MICROTCP_MSS + MICROTCP_HEADER_SIZE, flags) );
+			check( send(sockfd, tbuff, MICROTCP_MSS + MICROTCP_HEADER_SIZE, 0) );
 			socket->seq_number += MICROTCP_MSS;
 
 			/** TODO: congestion control - flow control */
@@ -429,7 +430,7 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 			memcpy(tbuff, &tcph, MICROTCP_HEADER_SIZE);
 			memcpy(tbuff + MICROTCP_HEADER_SIZE, (void *)(tmp), bytes_to_send);
 
-			check( send(sockfd, tbuff, bytes_to_send + MICROTCP_HEADER_SIZE, flags) );
+			check( send(sockfd, tbuff, bytes_to_send + MICROTCP_HEADER_SIZE, 0) );
 
 			socket->seq_number += bytes_to_send;
 			++chunks;
@@ -463,13 +464,11 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 ssize_t microtcp_recv(microtcp_sock_t * __restrict__ socket, void * __restrict__ buffer, size_t length, int flags)
 {
 	microtcp_header_t tcph;
-	int sockfd;
-
-	uint64_t index;
+	uint8_t tbuff[MICROTCP_MSS + MICROTCP_HEADER_SIZE]; // c99 and onwards
 	int64_t bytes_read;
 
-	uint8_t tbuff[MICROTCP_MSS + MICROTCP_HEADER_SIZE]; // c99 and onwards
-	uint8_t *recvb;
+	int sockfd;
+	int frag;
 
 
 	if ( !socket ) {
@@ -486,46 +485,30 @@ ssize_t microtcp_recv(microtcp_sock_t * __restrict__ socket, void * __restrict__
 	
 
 	sockfd = socket->sd;
-	index  = 0UL;
 
-	check( bytes_read = recv(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0) );
+	check( bytes_read = recv(sockfd, tbuff, MICROTCP_MSS + MICROTCP_HEADER_SIZE, 0) );
+	memcpy(&tcph, tbuff, MICROTCP_HEADER_SIZE);
 	print_tcp_header(socket, &tcph);
 	_ntoh_recvd_tcph(tcph);
+
+	if ( tcph.control & CTRL_FIN ) {
+
+		microtcp_shutdown(socket, 0);
+		return bytes_read;
+	}
 
 	if ( !tcph.data_len )  // zero length packet
 		return 0L;
 
-	check( recv(sockfd, buffer + index, tcph.data_len, 0) );
-	index += tcph.data_len;
+	memcpy(buffer, tbuff + MICROTCP_HEADER_SIZE, tcph.data_len);
 
-	while ( index < length ) {
+	socket->ack_number += tcph.data_len;
+	tcph.seq_number = socket->seq_number;
+	tcph.ack_number = socket->ack_number;
 
-		bytes_read = recv(sockfd, &tcph, MICROTCP_HEADER_SIZE, MSG_DONTWAIT);
+	_preapre_send_tcph(socket, &tcph, CTRL_ACK, NULL, 0U);
+	check( send(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0) );
 
-		if ( bytes_read < 0 ) {
-
-			if ( (errno != EAGAIN) && (errno != EWOULDBLOCK) )
-				return -(EXIT_FAILURE);
-		}
-
-		print_tcp_header(socket, &tcph);
-		_ntoh_recvd_tcph(tcph);
-
-		if ( !tcph.data_len )  // zero length packet
-			return 0L;
-
-		check( recv(sockfd, buffer + index, tcph.data_len, 0) );
-
-		index += tcph.data_len;
-		socket->ack_number += tcph.data_len;
-		tcph.seq_number = socket->seq_number;
-		tcph.ack_number = socket->ack_number;
-
-		_preapre_send_tcph(socket, &tcph, CTRL_ACK, NULL, 0U);
-		check( send(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0) );
-	}
-
-	//
 
 	/** TODO: Flow Control */
 	/** TODO: Packet reordering */
@@ -533,6 +516,4 @@ ssize_t microtcp_recv(microtcp_sock_t * __restrict__ socket, void * __restrict__
 
 	return bytes_read;
 }
-
-
 

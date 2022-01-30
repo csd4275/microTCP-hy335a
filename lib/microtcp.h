@@ -168,7 +168,8 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
                int flags);
 
 /**
- * @brief
+ * @brief The receive calls normally return any data available, up to the requested amount rather
+ * than waiting for receipt of the full amount requested.
  * 
  * @param socket a valid microTCP socket object
  * @param buffer 
