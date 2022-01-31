@@ -25,12 +25,16 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <arpa/inet.h>
 #include "connections.h"
 #include "../lib/microtcp.h"
 #include "../utils/log.h"
 
-#define TEST_BYTES 3600
+#define TEST_BYTES 2805
 
 int main(int argc, char **argv)
 {
@@ -52,13 +56,22 @@ int main(int argc, char **argv)
 
     microtcp_connect(&csock,(struct sockaddr*)&addr,sizeof(addr));
 
-    if ( !(frag_test = malloc(TEST_BYTES)) ) {
+    int fd = open("test.txt", O_RDONLY);
+
+    if ( (fd = open("test.txt", O_RDONLY)) < 0 ) {
+
+        perror("open() failed");
+        exit(EXIT_FAILURE);
+    }
+
+    if ( !(frag_test = malloc(TEST_BYTES + 1)) ) {
 
         perror("malloc() failed");
         exit(EXIT_FAILURE);
     }
 
-    memset(frag_test, 'a', TEST_BYTES);
+    read(fd, frag_test, TEST_BYTES);
+    *(char *)(frag_test + TEST_BYTES) = 0;
 
     check( microtcp_send(&csock, "Pousth Bisia!!!", 16UL, 0) );
     check( microtcp_send(&csock, "Papastamo GAmiesai!1!!1!", 25UL, 0) );
@@ -78,6 +91,7 @@ int main(int argc, char **argv)
     }
 
     LOG_DEBUG("Connection has been shut down successfully!\n");
+    munmap(frag_test, TEST_BYTES);
 
     return 0;
 }
