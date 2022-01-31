@@ -324,7 +324,7 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 		check(send(socket->sd, (void*)&ack, sizeof(ack), 0));
 		
 		/** TODO: Timed wait for server FIN ACK retransmition */
-		socket.state = CLOSED;
+		socket->state = CLOSED;
 		return EXIT_SUCCESS;
 
 	}else if(socket->state == LISTEN){//reciever recieved a FIN packet
@@ -361,73 +361,73 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 	}
 }
 
-// {	
-// 	switch (how)
-// 	{
-// 	case SHUT_RD:
-// 
-// 		if(socket->state==ESTABLISHED){
-// 			socket->state=CLOSING_BY_PEER;
-// 		}else if(socket->state==CLOSING_BY_HOST){
-// 			// socket->state= ?? state becomes closed  on SHUT_RDWR
-// 		}
-// 		else
-// 			return -(EXIT_FAILURE);
-// 
-// 		microtcp_header_t ack_header;
-// 		ack_header.control = htons(CTRL_ACK);
-// 		ack_header.ack_number = htonl(socket->ack_number);
-// 		check(send(socket->sd,(void*)&ack_header,sizeof(ack_header),0));
-		// 
-// 		if(socket->state==CLOSING_BY_PEER){
-// 			microtcp_shutdown(socket, SHUT_WR);
-// 			return EXIT_SUCCESS;
-// 		}else if(socket->state==CLOSING_BY_HOST){
-// 			microtcp_shutdown(socket,SHUT_RDWR);
-// 		}else{
-// 			return -(EXIT_FAILURE);
-// 		}
-// 
-// 		break;
-// 	case SHUT_WR:
-// 		printf("SHUT_WR\n");
-// 		microtcp_header_t fin_ack, ack;
-// 
-// 		fin_ack.seq_number = htonl(socket->seq_number);
-// 		fin_ack.ack_number = htonl(socket->ack_number);
-// 		fin_ack.control = htons(CTRL_FIN | CTRL_ACK);
-// 		/* Send FIN/ACK */
-// 		check(send(socket->sd, (void*)&fin_ack, sizeof(fin_ack), 0));
-// 		/* Receive ACK for previous FINACK */
-// 		check(recv(socket->sd, (void*)&ack, sizeof(ack), 0));
-// 
-// 		ack.control = ntohs(ack.control);
-// 
-// 		/* Check if the received package is an ACK (and the correct ACK)*/
-// 		if(ack.control & CTRL_ACK) {
-// 			/** TODO: Check if ack is seq + 1 */
-// 			if(socket->state == ESTABLISHED) {
-// 				socket->state = CLOSING_BY_HOST;
-// 			}
-// 			else if(socket->state == CLOSING_BY_PEER) {
-// 				microtcp_shutdown(socket, SHUT_RDWR);
-// 			}
-// 		}
-// 
-// 		break;
-// 	case SHUT_RDWR: /* SHUT _RDWR */
-// 		printf("SHUT_RDWR\n");
-// 		printf("Closing socket\n");
-// 		close(socket->sd);
-// 		socket->state = CLOSED;
-// 		break;
-// 	default:
-// 		errno = EINVAL;
-// 		return -(EXIT_FAILURE);
-// 	}
-// 
-// 	return EXIT_SUCCESS;
-// }
+/* {	
+	switch (how)
+	{
+	case SHUT_RD:
+
+		if(socket->state==ESTABLISHED){
+			socket->state=CLOSING_BY_PEER;
+		}else if(socket->state==CLOSING_BY_HOST){
+			// socket->state= ?? state becomes closed  on SHUT_RDWR
+		}
+		else
+			return -(EXIT_FAILURE);
+
+		microtcp_header_t ack_header;
+		ack_header.control = htons(CTRL_ACK);
+		ack_header.ack_number = htonl(socket->ack_number);
+		check(send(socket->sd,(void*)&ack_header,sizeof(ack_header),0));
+		
+		if(socket->state==CLOSING_BY_PEER){
+			microtcp_shutdown(socket, SHUT_WR);
+			return EXIT_SUCCESS;
+		}else if(socket->state==CLOSING_BY_HOST){
+			microtcp_shutdown(socket,SHUT_RDWR);
+		}else{
+			return -(EXIT_FAILURE);
+		}
+
+		break;
+	case SHUT_WR:
+		printf("SHUT_WR\n");
+		microtcp_header_t fin_ack, ack;
+
+		fin_ack.seq_number = htonl(socket->seq_number);
+		fin_ack.ack_number = htonl(socket->ack_number);
+		fin_ack.control = htons(CTRL_FIN | CTRL_ACK);
+		// Send FIN/ACK
+		check(send(socket->sd, (void*)&fin_ack, sizeof(fin_ack), 0));
+		// Receive ACK for previous FINACK
+		check(recv(socket->sd, (void*)&ack, sizeof(ack), 0));
+
+		ack.control = ntohs(ack.control);
+
+		// Check if the received package is an ACK (and the correct ACK)
+		if(ack.control & CTRL_ACK) {
+			// TODO: Check if ack is seq + 1 
+			if(socket->state == ESTABLISHED) {
+				socket->state = CLOSING_BY_HOST;
+			}
+			else if(socket->state == CLOSING_BY_PEER) {
+				microtcp_shutdown(socket, SHUT_RDWR);
+			}
+		}
+
+		break;
+	case SHUT_RDWR: // SHUT _RDWR
+		printf("SHUT_RDWR\n");
+		printf("Closing socket\n");
+		close(socket->sd);
+		socket->state = CLOSED;
+		break;
+	default:
+		errno = EINVAL;
+		return -(EXIT_FAILURE);
+	}
+
+	return EXIT_SUCCESS;
+} */
 
 ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __restrict__ buffer, size_t length,
                int flags)
@@ -542,10 +542,12 @@ ssize_t microtcp_recv(microtcp_sock_t * __restrict__ socket, void * __restrict__
 {
 	microtcp_header_t tcph;
 	uint8_t tbuff[MICROTCP_MSS + MICROTCP_HEADER_SIZE]; // c99 and onwards
-	int64_t bytes_read;
 
 	int sockfd;
 	int frag;
+
+	int64_t total_bytes_read;
+	int64_t bytes_read;
 
 
 	if ( !socket ) {
@@ -561,9 +563,10 @@ ssize_t microtcp_recv(microtcp_sock_t * __restrict__ socket, void * __restrict__
 	}
 	
 
+	total_bytes_read = 0L;
 	sockfd = socket->sd;
 
-	check( bytes_read = recv(sockfd, tbuff, MICROTCP_MSS + MICROTCP_HEADER_SIZE, 0) );
+	check( total_bytes_read = recv(sockfd, tbuff, MICROTCP_MSS + MICROTCP_HEADER_SIZE, 0) );
 	memcpy(&tcph, tbuff, MICROTCP_HEADER_SIZE);
 	print_tcp_header(socket, &tcph);
 	_ntoh_recvd_tcph(tcph);
@@ -571,26 +574,57 @@ ssize_t microtcp_recv(microtcp_sock_t * __restrict__ socket, void * __restrict__
 	if ( tcph.control & CTRL_FIN ) {
 
 		microtcp_shutdown(socket, 0);
-		return bytes_read;
+		return -1L;
 	}
 
 	if ( !tcph.data_len )  // zero length packet
 		return 0L;
 
+
 	memcpy(buffer, tbuff + MICROTCP_HEADER_SIZE, tcph.data_len);
 
+	total_bytes_read -= MICROTCP_HEADER_SIZE;
 	socket->ack_number += tcph.data_len;
 	tcph.seq_number = socket->seq_number;
 	tcph.ack_number = socket->ack_number;
+	frag = tcph.control & FRAGMENT;
 
 	_preapre_send_tcph(socket, &tcph, CTRL_ACK, NULL, 0U);
 	check( send(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0) );
+
+	if ( !frag )  // no fragmentation case
+		return total_bytes_read;
+
+	// fragmentation case
+	tbuff[total_bytes_read - 1L];
+	bytes_read = total_bytes_read;
+
+	do {
+
+		tbuff[bytes_read - 1L] = 0;
+
+		check( bytes_read = recv(sockfd, tbuff, MICROTCP_MSS + MICROTCP_HEADER_SIZE, 0) );
+		memcpy(&tcph, tbuff, MICROTCP_HEADER_SIZE);
+		// print_tcp_header(socket, &tcph);
+		_ntoh_recvd_tcph(tcph);
+		memcpy(buffer + total_bytes_read, tbuff + MICROTCP_HEADER_SIZE, tcph.data_len);
+
+		total_bytes_read += bytes_read - MICROTCP_HEADER_SIZE;
+		socket->ack_number += tcph.data_len;
+		tcph.seq_number = socket->seq_number;
+		tcph.ack_number = socket->ack_number;
+		frag = tcph.control & FRAGMENT;
+
+		_preapre_send_tcph(socket, &tcph, CTRL_ACK, NULL, 0U);
+		check( send(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0) );
+
+	} while ( !frag );
 
 
 	/** TODO: Flow Control */
 	/** TODO: Packet reordering */
 	/** TODO: Acknowledgements */
 
-	return bytes_read;
+	return total_bytes_read;
 }
 
