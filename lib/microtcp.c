@@ -285,9 +285,11 @@ int microtcp_accept(microtcp_sock_t * __restrict__ socket, struct sockaddr * __r
 
 int microtcp_shutdown(microtcp_sock_t * socket, int how)
 {
+	// LOG_DEBUG("Start of SD");
+	// LOG_DEBUG("how=%d",how);
 	microtcp_header_t fin_ack, ack;
 
-	if(socket->state==ESTABLISHED){//sender is shutting down the connection
+	if(how==SHUTDOWN_CLIENT){//sender is shutting down the connection
 
 		fin_ack.seq_number = htonl(socket->seq_number);
 		fin_ack.ack_number = htonl(socket->ack_number);
@@ -327,32 +329,37 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 		socket->state = CLOSED;
 		return EXIT_SUCCESS;
 
-	}else if(socket->state == LISTEN){//reciever recieved a FIN packet
+	}else if(how==SHUTDOWN_SERVER){//reciever recieved a FIN packet
 
 		socket->state=CLOSING_BY_PEER;
-
+		// LOG_DEBUG("SD: state:cbp");
 		ack.control    = htons(CTRL_ACK);
 		ack.ack_number = htonl(socket->ack_number);
 		check(send(socket->sd, (void*)&ack, sizeof(ack), 0));
 		
+		// LOG_DEBUG("SD: sent ACK\n");
 		fin_ack.seq_number = htonl(socket->seq_number);
 		fin_ack.ack_number = htonl(socket->ack_number);
 		fin_ack.control    = htons(CTRL_FIN | CTRL_ACK);
 		
 		/* Send FIN/ACK */
 		check(send(socket->sd, (void*)&fin_ack, sizeof(fin_ack), 0));
+		// LOG_DEBUG("SD: Sent FINACK\n");
+		// LOG_DEBUG("SD: Waiting for ACK\n");
 		/* Receive ACK for previous FINACK */
 		check(recv(socket->sd, (void*)&ack, sizeof(ack), 0));
 
 		uint16_t recieved_ack = ntohs(ack.control);
 
 		/* Check if the received package is an ACK */
-		if(recieved_ack & CTRL_ACK) {
+		if((recieved_ack & CTRL_ACK)) {
 			return -(EXIT_FAILURE);
 		}
+		// LOG_DEBUG("SD: recieved ACK");
 
 		/* Terminate the connection */
 		socket->state = CLOSED;
+		// LOG_DEBUG("SD: state:closed");
 		return EXIT_SUCCESS;
 
 	}else{
@@ -360,74 +367,6 @@ int microtcp_shutdown(microtcp_sock_t * socket, int how)
 		return -(EXIT_FAILURE);
 	}
 }
-
-/* {	
-	switch (how)
-	{
-	case SHUT_RD:
-
-		if(socket->state==ESTABLISHED){
-			socket->state=CLOSING_BY_PEER;
-		}else if(socket->state==CLOSING_BY_HOST){
-			// socket->state= ?? state becomes closed  on SHUT_RDWR
-		}
-		else
-			return -(EXIT_FAILURE);
-
-		microtcp_header_t ack_header;
-		ack_header.control = htons(CTRL_ACK);
-		ack_header.ack_number = htonl(socket->ack_number);
-		check(send(socket->sd,(void*)&ack_header,sizeof(ack_header),0));
-		
-		if(socket->state==CLOSING_BY_PEER){
-			microtcp_shutdown(socket, SHUT_WR);
-			return EXIT_SUCCESS;
-		}else if(socket->state==CLOSING_BY_HOST){
-			microtcp_shutdown(socket,SHUT_RDWR);
-		}else{
-			return -(EXIT_FAILURE);
-		}
-
-		break;
-	case SHUT_WR:
-		printf("SHUT_WR\n");
-		microtcp_header_t fin_ack, ack;
-
-		fin_ack.seq_number = htonl(socket->seq_number);
-		fin_ack.ack_number = htonl(socket->ack_number);
-		fin_ack.control = htons(CTRL_FIN | CTRL_ACK);
-		// Send FIN/ACK
-		check(send(socket->sd, (void*)&fin_ack, sizeof(fin_ack), 0));
-		// Receive ACK for previous FINACK
-		check(recv(socket->sd, (void*)&ack, sizeof(ack), 0));
-
-		ack.control = ntohs(ack.control);
-
-		// Check if the received package is an ACK (and the correct ACK)
-		if(ack.control & CTRL_ACK) {
-			// TODO: Check if ack is seq + 1 
-			if(socket->state == ESTABLISHED) {
-				socket->state = CLOSING_BY_HOST;
-			}
-			else if(socket->state == CLOSING_BY_PEER) {
-				microtcp_shutdown(socket, SHUT_RDWR);
-			}
-		}
-
-		break;
-	case SHUT_RDWR: // SHUT _RDWR
-		printf("SHUT_RDWR\n");
-		printf("Closing socket\n");
-		close(socket->sd);
-		socket->state = CLOSED;
-		break;
-	default:
-		errno = EINVAL;
-		return -(EXIT_FAILURE);
-	}
-
-	return EXIT_SUCCESS;
-} */
 
 ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __restrict__ buffer, size_t length,
                int flags)
@@ -573,7 +512,7 @@ ssize_t microtcp_recv(microtcp_sock_t * __restrict__ socket, void * __restrict__
 
 	if ( tcph.control & CTRL_FIN ) {
 
-		microtcp_shutdown(socket, 0);
+		microtcp_shutdown(socket, SHUTDOWN_SERVER);
 		return -1L;
 	}
 
