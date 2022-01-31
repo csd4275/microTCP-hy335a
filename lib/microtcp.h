@@ -36,6 +36,9 @@
 #define CTRL_RST ( 1U << 2 )
 #define CTRL_ACK ( 1U << 3 )
 
+#define SHUTDOWN_CLIENT 0
+#define SHUTDOWN_SERVER 1
+
 /*
  * Several useful constants
  */
