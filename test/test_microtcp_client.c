@@ -81,7 +81,6 @@ int main(int argc, char **argv)
     microtcp_shutdown(&csock,SHUTDOWN_CLIENT);
 
     LOG_DEBUG("Connection has been shut down successfully!\n");
-    munmap(frag_test, TEST_BYTES);
 
     return 0;
 }
