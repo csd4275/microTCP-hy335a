@@ -72,6 +72,7 @@ int main(int argc, char ** argv)
     check( microtcp_bind(&ssock, (struct sockaddr *)(&addr), sizeof(addr)) );
     check( microtcp_accept(&ssock, (struct sockaddr *)(&addr), sizeof(addr)) );
     memset(buff, 0, 1500UL);
+    // sleep(4U);  // this line causes congestion
 
     for (;;) {
 

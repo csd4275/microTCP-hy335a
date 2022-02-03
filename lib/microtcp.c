@@ -16,6 +16,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * 
+ * MT-Unsafe
  */
 
 #include "microtcp.h"
@@ -47,6 +49,7 @@
 #define TIOUT_ENABLE   1
 
 
+
 /**
  * @brief Initializes the microTCP header for a packet to get send over the network. By giving FRAGMENT
  * in 'ctrlb', the packet (header) will be marked as fragmented. Putting CTRL_XXX in 'ctrlb' will not
@@ -59,7 +62,8 @@
  * @param payld payload
  */
 static void _preapre_send_tcph(microtcp_sock_t * __restrict__ sock, microtcp_header_t * __restrict__ tcph, uint16_t ctrlb,
-						const void * __restrict__ payld, uint32_t paysz){
+						const void * __restrict__ payld, uint32_t paysz)
+{
 
 	#ifdef ENABLE_DEBUG_MSG
 	if ( !sock ) {
@@ -85,7 +89,7 @@ static void _preapre_send_tcph(microtcp_sock_t * __restrict__ sock, microtcp_hea
 	tcph->seq_number = htonl(sock->seq_number);
 	tcph->ack_number = htonl(sock->ack_number);
 	tcph->control    = htons(ctrlb);
-	tcph->window     = htons(sock->curr_win_size);
+	tcph->window     = htons(MICROTCP_RECVBUF_LEN - sock->buf_fill_level);
 	tcph->data_len   = htonl(paysz);
 	tcph->checksum   = htonl( (paysz) ? crc32(payld, paysz) : 0U );
 }
@@ -96,7 +100,8 @@ static void _preapre_send_tcph(microtcp_sock_t * __restrict__ sock, microtcp_hea
  * @param too timeout-option (TIOUT_ENABLE, TIOUT_DISABLE)
  * @return int 
  */
-static int _timeout(int sockfd, int too){
+static int _timeout(int sockfd, int too)
+{
 
 	struct timeval to;  // timeout
 
@@ -112,18 +117,21 @@ static int _timeout(int sockfd, int too){
 	return EXIT_SUCCESS;
 }
 
-static void cleanup();  /** TODO: add to at_exit() */
+static void _update_recv_buf(microtcp_sock_t *socket)
+{
+	
+}
+
+static void _cleanup();  /** TODO: add to at_exit() - free recvbuf() */
 
 //////////////////////////////////////////////////////////////////////////////////////
+
 /** TODO: [!] implement byte and packet statistics [!] */
 
 microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 {
 	microtcp_sock_t sock;
-
 	int sockfd;
-	int optval;
-	int optsz;
 
 
 	if ( type != SOCK_DGRAM )
@@ -142,11 +150,8 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 		return sock;
 	}
 
-	optsz  = sizeof(int);
-	optval = MICROTCP_RECVBUF_LEN;
-
 	check( sockfd = socket(domain, SOCK_DGRAM, protocol ));
-	check( setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &optval, optsz) );  // The kernel will double this amount
+
 	memset(&sock, 0, sizeof(sock));
 	srand(time(NULL) + getpid());
 
@@ -158,8 +163,7 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 	#ifdef ENABLE_DEBUG_MSG
 	ackbase = sock.seq_number;
 	#endif
-	
-	
+
 
 	return sock;
 }
@@ -167,7 +171,7 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 int microtcp_bind(microtcp_sock_t * __restrict__ socket, const struct sockaddr * __restrict__ address,
                socklen_t address_len)
 {
-	check(bind(socket->sd, address, address_len));
+	check( bind(socket->sd, address, address_len) );
 	return EXIT_SUCCESS;
 }
 
@@ -218,6 +222,8 @@ int microtcp_connect(microtcp_sock_t * __restrict__ socket, const struct sockadd
 	check( send(socket->sd, &tcph, sizeof(tcph), 0) );  // send ACK
 	socket->state = ESTABLISHED;
 
+	// _sock_enable_async(socket);
+
 
 	return EXIT_SUCCESS;
 }
@@ -227,8 +233,6 @@ int microtcp_accept(microtcp_sock_t * __restrict__ socket, struct sockaddr * __r
 {
 	microtcp_header_t tcph;
 
-
-	/** TODO: convert that to switch(){...}, add more states */
 
 	if ( socket->state != INVALID )
 		return -(EXIT_FAILURE);
@@ -240,8 +244,8 @@ int microtcp_accept(microtcp_sock_t * __restrict__ socket, struct sockaddr * __r
 
 	#ifdef ENABLE_DEBUG_MSG
 	seqbase = ntohl(tcph.seq_number);  // necessary for print_tcp_header()
-	#endif
 	print_tcp_header(socket, &tcph);
+	#endif
 
 	if ( ntohs(tcph.control) != CTRL_SYN ) {
 
@@ -275,10 +279,11 @@ int microtcp_accept(microtcp_sock_t * __restrict__ socket, struct sockaddr * __r
 		return -(EXIT_FAILURE);
 	}
 
-	++socket->seq_number;
+	++socket->seq_number;         // ghost-byte
 	socket->state = ESTABLISHED;
 
-	/** TODO: implement checksum() */
+	// _sock_enable_async(socket);
+
 
 	return EXIT_SUCCESS;
 }
@@ -478,14 +483,14 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 
 ssize_t microtcp_recv(microtcp_sock_t * __restrict__ socket, void * __restrict__ buffer, size_t length, int flags)
 {
+	uint8_t tbuff[MICROTCP_RECVBUF_LEN];
 	microtcp_header_t tcph;
-	uint8_t tbuff[MICROTCP_MSS + MICROTCP_HEADER_SIZE]; // c99 and onwards
-
-	int sockfd;
-	int frag;
 
 	int64_t total_bytes_read;
 	int64_t bytes_read;
+
+	int sockfd;
+	int frag;
 
 
 	if ( !socket ) {
@@ -499,15 +504,15 @@ ssize_t microtcp_recv(microtcp_sock_t * __restrict__ socket, void * __restrict__
 		errno = EINVAL;
 		return -(EXIT_FAILURE);
 	}
-	
+
 
 	total_bytes_read = 0L;
 	sockfd = socket->sd;
 
-	check( total_bytes_read = recv(sockfd, tbuff, MICROTCP_MSS + MICROTCP_HEADER_SIZE, 0) );
+	check( total_bytes_read = recv(sockfd, tbuff, length, 0) );
 	memcpy(&tcph, tbuff, MICROTCP_HEADER_SIZE);
 	#ifdef ENABLE_DEBUG_MSG
-	print_tcp_header(socket, &tcph);
+	// print_tcp_header(socket, &tcph);
 	#endif
 	_ntoh_recvd_tcph(tcph);
 
@@ -531,8 +536,8 @@ ssize_t microtcp_recv(microtcp_sock_t * __restrict__ socket, void * __restrict__
 
 	total_bytes_read -= MICROTCP_HEADER_SIZE;
 	socket->ack_number += tcph.data_len;
-	tcph.seq_number = socket->seq_number;
 	tcph.ack_number = socket->ack_number;
+	tcph.seq_number = socket->seq_number;
 	frag = tcph.control & FRAGMENT;
 
 	_preapre_send_tcph(socket, &tcph, CTRL_ACK, NULL, 0U);
