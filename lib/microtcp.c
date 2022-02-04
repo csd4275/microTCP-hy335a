@@ -382,6 +382,8 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 	int sockfd;
 	int fflag;  // fragments flag
 
+	size_t lengthcpy = length;
+
 	register uint64_t bytes_to_send;
 	register uint64_t chunks;
 	register uint64_t index;
@@ -459,15 +461,46 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 			/** TODO: detect and handle triple-dupACK */
 
 			ret = recv(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0);
+			_ntoh_recvd_tcph(tcph);
 
 			// TIMEOUT occured
 			if ( (ret < 0) && (errno == EAGAIN) ) {
 
 				/** TODO: implement congestion algorithm (cwnd, ssthresh, etc) */
-				LOG_DEBUG("timeout-occured\n");
-				check(-1);
+				socket->ssthresh  = socket->cwnd/2; 
+				socket->cwnd      = MICROTCP_MSS;
+				socket->dupackcnt = 0U;
+				socket->state     = SLOW_START;
+
+				LOG_DEBUG("timeout-occured, retransmiting packet\n");
+				// check(-1);
+				return microtcp_send(socket,buffer,lengthcpy,flags);
 			}
 
+			//Check recieved packet
+			if( tcph.control & CTRL_ACK ){//ACK recieved
+	
+				if( tcph.ack_number == socket->seq_number){//Check ACK and current seq#
+	
+					LOG_DEBUG("SUCCESFULLY RECIEVED ACK: %d",tcph.ack_number);
+					socket->dupackcnt=0U;
+					if(socket->cwnd>=socket->ssthresh);
+
+				}else if(tcph.ack_number < socket->seq_number){//if ACK<seq# (dup ack)
+	
+					socket->dupackcnt++;
+					LOG_DEBUG("FALSE ACK RECIEVED (ACK: %d,SEQ: %ld) d.a.c=%d",tcph.ack_number,socket->seq_number,socket->dupackcnt);
+
+					if(socket->dupackcnt>=3){//Enter "fast recovery" mode
+						LOG_DEBUG("TRIPLE DUPLICATE ACK DETECTED!");
+						socket->ssthresh = socket->cwnd / 2;
+						socket->cwnd     = socket->ssthresh + 3;
+
+						//Retransmit the packet
+						return microtcp_send(socket,buffer,lengthcpy,flags);
+					}
+				}
+			}
 		}
 	}
 
