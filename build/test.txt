@@ -1,0 +1,28 @@
+We invite you to be part of our ambitious, close-knit team creating systems for large customers who need to crunch through Tbps of data in real-time. Our approach is relentless performance-oriented software engineering vs. server sprawl in our customers' data centres.
+
+You will use the latest high-end hardware and continuously devise ways to push the envelope of software performance.
+
+We build in-house systems if we must. We had to for indexing 1M 60-column rows/s, for aggregating high throughput event streams over hundreds of combinations of dimensions, and for pattern matching 5M patterns at 100Gb/s per 2RU. We use these to solve real customer problems.
+
+You will experiment wildly. For example we implemented network monitoring using a GPU, and we tested 4-socket machines with 2T RAM. Our current favourite platform is a 2-socket system with Platinum 8180 CPUs (112 lcores in total), 4x40Gbps NICs and 1T RAM, which we use to process 160Gbps.
+
+You will help us build a successful software platform for the long run. We invest a lot in flexibility, such as with our extensible rule engine and declarative aggregation system that empowers our analysts and helps us minimise the C code we have to write for supporting disparate use-cases.
+
+We know the devil is in the details. You will improve performance through better memory allocation systems and better data structures, all while ensuring that they are integrated with Address Sanitizer and fully tested using unit tests and end-to-end regression tests.
+
+We must be up-to-date. You will help us extend our system with capabilities to decode network protocols as they appear, like we did for QUIC and YouTube, TLSv1.3 and Facebook, and IoT protocols as we see more and more of these devices.
+
+We want to show off. To attract the best programmers we plan to showcase our technology. You can be part of our effort to open-source interesting pieces of our technology stack
+
+As a High-Performance DPI Engineer, you will be improving our DPI engine; by identifying performance bottlenecks, re-architecting components where necessary, adapting it for new, faster hardware, and adding new functionalities to decode network protocols and to extract raw events that enable valuable insights.
+
+You will develop the requirements in cooperation with Product Owners, as part of a team with a strong drive to deliver reliability and performance
+
+
+    Bachelor’s or Higher Degree in Computer Science or equivalent
+    Software craftsmanship
+    Experience with large C code bases and high-performance C programming
+    Familiarity with Intel’s DPDK toolkit
+    Familiarity with network protocols and tools such as Wireshark
+    Familiarity with shared memory data structures and parallel algorithms
+    Proficiency with Linux system & development tools
