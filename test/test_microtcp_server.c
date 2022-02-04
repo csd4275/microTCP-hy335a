@@ -72,12 +72,14 @@ int main(int argc, char ** argv)
     check( microtcp_bind(&ssock, (struct sockaddr *)(&addr), sizeof(addr)) );
     check( microtcp_accept(&ssock, (struct sockaddr *)(&addr), sizeof(addr)) );
     memset(buff, 0, 1500UL);
+    // sleep(4U);  // this line causes congestion
 
     for (;;) {
 
         int64_t ret;
 
         check( ret = microtcp_recv(&ssock, buff, 1500UL, 0) );
+        printf("ret = %ld\n", ret);
         buff[ret] = 0;
         LOG_DEBUG("recv()ed payload [%ld] ---> %s\n", ret, buff);
         memset(buff, 0, ret);
