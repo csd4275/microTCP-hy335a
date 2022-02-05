@@ -159,6 +159,7 @@ microtcp_sock_t microtcp_socket(int domain, int type, int protocol)
 	sock.seq_number = rand();
 	sock.cwnd       = MICROTCP_INIT_CWND;
 	sock.ssthresh   = MICROTCP_INIT_SSTHRESH;
+	sock.dupackcnt  = 0;
 	
 	#ifdef ENABLE_DEBUG_MSG
 	ackbase = sock.seq_number;
@@ -220,11 +221,11 @@ int microtcp_connect(microtcp_sock_t * __restrict__ socket, const struct sockadd
 	tcph.control    = htons(CTRL_ACK);
 
 	check( send(socket->sd, &tcph, sizeof(tcph), 0) );  // send ACK
-	socket->state = ESTABLISHED;
+	socket->state     = SLOW_START;
 
 	// _sock_enable_async(socket);
 
-
+	LOG_DEBUG("INIT CCONTROL:s.state: %d, s.cwnd: %ld, s.ssthres: %ld\n",socket->state,socket->cwnd,socket->ssthresh);
 	return EXIT_SUCCESS;
 }
 
@@ -385,8 +386,9 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 
 	int sockfd;
 	int fflag;  // fragments flag
+	int ccontrol = 1; //congestion control flag
 
-	// size_t lengthcpy = length;
+	size_t lengthcpy = length;
 
 	register uint64_t bytes_to_send;
 	register uint64_t chunks;
@@ -416,7 +418,7 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 
 	_timeout(sockfd, TIOUT_ENABLE);
 
-	while ( length ) {
+	while ( length ) {//afou mesa se auto to while ginetai olo to length transmit, giati upraxei while(length)?
 
 		tmp = MIN2(socket->cwnd, socket->sendbuflen);
 		bytes_to_send = MIN2(length, tmp);
@@ -465,65 +467,80 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 
 			check( ret = recv(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0));
 			_ntoh_recvd_tcph(tcph);
+			// LOG_DEBUG("RECIEVED RESPONSE:");
 
 			// TIMEOUT occured
 			if ( (ret < 0) && (errno == EAGAIN) ) {
 
-				/** TODO: implement congestion algorithm (cwnd, ssthresh, etc) */
 				socket->ssthresh  = socket->cwnd/2; 
-				socket->cwnd      = MICROTCP_MSS;
+				socket->cwnd      = MIN2(MICROTCP_MSS,socket->ssthresh);
 				socket->dupackcnt = 0U;
 				socket->state     = SLOW_START;
 
 				LOG_DEBUG("timeout-occured, retransmiting packet\n");
 				LOG_DEBUG("s.state: %d, s.cwnd: %ld, s.ssthres: %ld\n",socket->state,socket->cwnd,socket->ssthresh);
-				// check(-1);
-				// check(ret = microtcp_send(socket,buffer,lengthcpy,flags));
-				return ret;
+				check(ret = microtcp_send(socket,buffer,lengthcpy,flags));
+				ccontrol = ret;
 			}
 
 			//Check recieved packet
 			if( tcph.control & CTRL_ACK ){//ACK recieved
-	
-				if( tcph.ack_number == socket->seq_number){//Check ACK and current seq#
-	
-					LOG_DEBUG("SUCCESFULLY RECIEVED ACK: %d",tcph.ack_number);
+
+				//Calculate expected packet's ACK based on fragmeted packet's base
+				size_t prevseq = socket->seq_number - lengthcpy;
+				size_t expected_ack = MIN2(prevseq+(MICROTCP_MSS*(index+1)),socket->seq_number);
+				// LOG_DEBUG("ACK %d, expected: %ld",tcph.ack_number,expected_ack);
+
+				if( tcph.ack_number == expected_ack){//Check ACK and current seq#
+
+					LOG_DEBUG("SUCCESFULLY RECEIVED ACK: %d",tcph.ack_number);
 					
 					socket->dupackcnt=0U;
 					if(socket->state==SLOW_START){
 						
-						if(socket->cwnd>=socket->ssthresh){//if SLOW_START & cwnd>=ssthresh ->CONG_AVOID
+						socket->cwnd=socket->cwnd*2;//in SLOW_START increment cwnd exponentially
+						
+						if(socket->cwnd>=socket->ssthresh){//if SLOW_START & cwnd>=ssthresh -> CONG_AVOID
 							socket->state=CONG_AVOID;
-						}else{socket->cwnd=socket->cwnd*2;}//in SLOW_START increment cwnd exponentially
+						}
 
 					}else{socket->cwnd+=MICROTCP_MSS;}//in CONG_AVOID increment cwnd additively
 					
-					LOG_DEBUG("s.state: %d, s.cwnd: %ld, s.ssthres: %ld\n",socket->state,socket->cwnd,socket->ssthresh);
-					return EXIT_SUCCESS;//transmit new segments as allowed
-
-				}else if(tcph.ack_number < socket->seq_number){//if ACK<seq# (dup ack)
+					LOG_DEBUG("CONGESTION CONTROL: s.state: %d, s.cwnd: %ld, s.ssthres: %ld\n",socket->state,socket->cwnd,socket->ssthresh);
+					
+				}else if(tcph.ack_number < expected_ack){//if ACK<seq# (dup ack)
 	
 					socket->dupackcnt++;
-					LOG_DEBUG("FALSE ACK RECIEVED (ACK: %d,SEQ: %ld) d.a.c=%d",tcph.ack_number,socket->seq_number,socket->dupackcnt);
+					LOG_DEBUG("FALSE ACK RECIEVED (ACK: %d,SEQ: %ld) d.a.c=%d",tcph.ack_number,prevseq+(MICROTCP_MSS*index),socket->dupackcnt);
 
 					if(socket->dupackcnt>=3){//Enter "fast recovery" mode
 						LOG_DEBUG("TRIPLE DUPLICATE ACK DETECTED! Retransmitting the packet");
 						
 						if(socket->dupackcnt==3){//Just entered "fast recovery"
 							socket->ssthresh = socket->cwnd / 2;
-							socket->cwnd     = socket->ssthresh + 3;
+							socket->cwnd     = socket->cwnd + 1;
 						}else{//dup ACK again!
 							socket->cwnd = socket->cwnd + MICROTCP_MSS;
 						}
 						LOG_DEBUG("s.state: %d, s.cwnd: %ld, s.ssthres: %ld\n",socket->state,socket->cwnd,socket->ssthresh);
 				
 						//Retransmit the packet
-						// check(ret = microtcp_send(socket,buffer,lengthcpy,flags));
-						return ret;
+						check(ret = microtcp_send(socket,buffer,lengthcpy,flags));
+						ccontrol = ret;
 					}
+				}else{
+					LOG_DEBUG("FATAL");
 				}
 			}
 		}
+	}
+
+	//Check if congestion control exited without errors
+	// LOG_DEBUG("ccontrol: %d",ccontrol);
+	if(ccontrol){
+		return lengthcpy;
+	}else{
+		return -(EXIT_FAILURE);
 	}
 
 	_timeout(sockfd, TIOUT_DISABLE);
