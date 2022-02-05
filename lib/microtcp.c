@@ -483,7 +483,7 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 
 ssize_t microtcp_recv(microtcp_sock_t * __restrict__ socket, void * __restrict__ buffer, size_t length, int flags)
 {
-	uint8_t tbuff[MICROTCP_RECVBUF_LEN];
+	uint8_t tbuff[MICROTCP_MSS + MICROTCP_HEADER_SIZE];
 	microtcp_header_t tcph;
 
 	int64_t total_bytes_read;
