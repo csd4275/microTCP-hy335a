@@ -407,6 +407,7 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 	sockfd = socket->sd;
 	fflag  = 0;
 
+sflag0:
 	if ( length > MIN2(MICROTCP_MSS, MIN2(socket->cwnd, socket->sendbuflen)) )
 		fflag = 0;
 	else
@@ -453,7 +454,7 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 
 		for ( dacks = 0UL, index = 0UL; index < chunks; ++index ) {	
 
-receive1:
+sflag1:
 			ret = recv(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0);
 
 			if ( ret < 0 ) {
@@ -491,7 +492,7 @@ receive1:
 						// length -= 
 					}
 
-					goto receive1;
+					goto sflag1;
 				}
 				else
 					socket->seq_number += (index != chunks - 1UL) ? MICROTCP_MSS : bytes_to_send;
@@ -533,7 +534,7 @@ ssize_t microtcp_recv(microtcp_sock_t * __restrict__ socket, void * __restrict__
 	total_bytes_read = 0L;
 	sockfd = socket->sd;
 
-receive2:
+rflag0:
 	check( total_bytes_read = recv(sockfd, tbuff, length, 0) );
 	memcpy(&tcph, tbuff, MICROTCP_HEADER_SIZE);
 	_ntoh_recvd_tcph(tcph);
@@ -549,7 +550,7 @@ receive2:
 		 * thus achieving better performance.
 		 */
 
-		goto receive2;
+		goto rflag0;
 	}
 
 	if ( tcph.control & CTRL_FIN ) {
@@ -599,10 +600,6 @@ receive2:
 
 	} while ( !frag );
 
-
-	/** TODO: Flow Control */
-	/** TODO: Packet reordering */
-	/** TODO: Acknowledgements */
 
 	return total_bytes_read;
 }
