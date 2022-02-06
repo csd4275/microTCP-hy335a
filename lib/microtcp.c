@@ -464,7 +464,7 @@ receive1:
 				if ( errno == EAGAIN ) {
 
 					socket->ssthresh  = socket->cwnd / 2; 
-					socket->cwnd      = MIN2(MICROTCP_MSS + 3 * MICROTCP_MSS, socket->ssthresh);
+					socket->cwnd      = MICROTCP_MSS;
 					socket->state     = SLOW_START;
 
 					LOG_DEBUG("timeout-occured, retransmiting packet\n");
