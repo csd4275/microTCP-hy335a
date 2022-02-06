@@ -25,6 +25,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <signal.h>
+#include <time.h>
 
 #include "../lib/microtcp.h"
 #include "../utils/log.h"
@@ -42,23 +43,47 @@ sig_handler(int signal)
 
 int
 main(int argc, char **argv) {
-  uint16_t port;
-
   /*
    * Register a signal handler so we can terminate the client with
    * Ctrl+C
    */
   signal(SIGINT, sig_handler);
+  check_args(argc, argv);
+  microtcp_sock_t socket;
+  struct sockaddr_in addr;
+  uint16_t port=atoi(argv[2]);
+  uint32_t iaddr;
+  uint8_t  buff[1500];
+
+
+  socket = microtcp_socket(AF_INET, SOCK_DGRAM, 0);
+  inet_pton(AF_INET, argv[1], &iaddr);
+  addr.sin_addr.s_addr = iaddr;
+  addr.sin_port        = htons(port);
+  addr.sin_family      = AF_INET;
+
+  microtcp_connect(&socket, (struct sockaddr*)&addr, sizeof(addr));
+
 
   LOG_INFO("Start receiving traffic from port %u", port);
   /*TODO: Connect using microtcp_connect() */
   while(running) {
     /* TODO: Measure time */
+    time_t now = time(0);
     /* TODO: Receive using microtcp_recv()*/
+    microtcp_recv(&socket, buff, 1500UL, 0);
     /* TODO: Measure time */
+    time_t later = time(0);
+    double elapsed_time = difftime(later, now);
     /* TODO: Do other stuff... */
   }
 
   /* Ctrl+C pressed! Store properly time measurements for plotting */
 }
 
+check_args(int argc, char** argv) {
+  if(argc < 4 || argc >=5) {
+    printf("Invalid Syntax: ./traffic_generator_client <server-ip> <port>");
+    exit(0);
+  }
+}

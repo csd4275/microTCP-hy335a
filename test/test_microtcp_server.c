@@ -33,10 +33,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-void check_main_input(int argc, char ** argv);
+void server_check_main_input(int argc, char ** argv);
 
-int main(int argc, char ** argv)
-{
+int main(int argc, char ** argv) {
     int sockopt;
     int optval;
     int optsz;
@@ -50,8 +49,15 @@ int main(int argc, char ** argv)
     microtcp_sock_t ssock;
     microtcp_header_t tcph;
 
-
+    int flag = 0;
     server_check_main_input(argc, argv);
+    if(argc == 3) {
+        if(strcmp(argv[2], "timeout") != 0) {
+            printf("Invalid argument. If you want the server to use timeout use the flag \"timeout\"");
+            exit(EXIT_FAILURE);
+        }
+        flag = 1;
+    }
     printf("initializing server...\n");
 
     ssock = microtcp_socket(AF_INET, SOCK_DGRAM, 0);
@@ -80,11 +86,9 @@ int main(int argc, char ** argv)
 
         check( ret = microtcp_recv(&ssock, buff, 1500UL, 0) );
         printf("ret = %ld\n", ret);
-        sleep(1U);
-        buff[ret] = 0;
+        usleep(250000U);
         LOG_DEBUG("recv()ed payload [%ld] ---> %s\n", ret, buff);
         memset(buff, 0, ret);
-        // sleep(1U);
 
         // connection will close with an error, due to shutdown()
         /** TODO: fix that with shutdown()... think() */

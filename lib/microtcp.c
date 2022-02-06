@@ -408,6 +408,7 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 	sockfd = socket->sd;
 	fflag  = 0;
 
+sflag0:
 	if ( length > MIN2(MICROTCP_MSS, MIN2(socket->cwnd, socket->sendbuflen)) )
 		fflag = 0;
 	else
@@ -432,7 +433,7 @@ send1:
 			_preapre_send_tcph(socket, &tcph, ( !fflag ) ? (fflag = FRAGMENT) : CTRL_XXX, (void *)(tmp), MICROTCP_MSS);
 			memcpy(tbuff, &tcph, MICROTCP_HEADER_SIZE);
 			memcpy(tbuff + MICROTCP_HEADER_SIZE, (void *)(tmp), MICROTCP_MSS);
-			
+
 			check( send(sockfd, tbuff, MICROTCP_MSS + MICROTCP_HEADER_SIZE, 0) );
 		}
 
@@ -454,11 +455,12 @@ send1:
 
 		for ( dacks = 0UL, index = 0UL; index < chunks; ++index ) {	
 
-receive1:
+sflag1:
 			ret = recv(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0);
 
 			LOG_DEBUG("s.state: %d, s.cwnd: %ld, s.ssthres: %ld\n",socket->state,socket->cwnd,socket->ssthresh);
 			LOG_DEBUG("%ld",ret);
+
 			if ( ret < 0 ) {
 
 				if ( errno == EAGAIN ) {
@@ -468,8 +470,6 @@ receive1:
 					socket->state     = SLOW_START;
 
 					LOG_DEBUG("timeout-occured, retransmiting packet\n");
-
-					/** TODO: Fast Retransmit */
 
 					// check( ret );
 					// microtcp_send(socket,buffer,lengthcpy,flags);
@@ -498,18 +498,19 @@ receive1:
 
 						tmp = (index != chunks - 1UL) ? MICROTCP_MSS : bytes_to_send;
 						buffer += (index - 1UL) * tmp;
-						// length -= 
-					}else if(dacks > 3UL){
-						socket->cwnd = socket->cwnd + MICROTCP_MSS;
+						// length -= 3MSS
 					}
+					else if ( dacks > 3UL )
+						socket->cwnd = socket->cwnd + MICROTCP_MSS;
 
-					goto receive1;
+					goto sflag1;
 				}
-				else{
+				else {
+
 					socket->seq_number += (index != chunks - 1UL) ? MICROTCP_MSS : bytes_to_send;
 					dacks = 0UL;
 
-					if(socket->state==SLOW_START){
+					if ( socket->state == SLOW_START ) {
 						
 						socket->cwnd=socket->cwnd*2;//in SLOW_START increment cwnd exponentially
 						
@@ -518,7 +519,9 @@ receive1:
 						}
 
 
-					}else{socket->cwnd+=MICROTCP_MSS;}//in CONG_AVOID increment cwnd additively
+					}
+					else
+						socket->cwnd+=MICROTCP_MSS;//in CONG_AVOID increment cwnd additively
 				}
 			}
 		}
@@ -558,7 +561,7 @@ ssize_t microtcp_recv(microtcp_sock_t * __restrict__ socket, void * __restrict__
 	total_bytes_read = 0L;
 	sockfd = socket->sd;
 
-receive2:
+rflag0:
 	check( total_bytes_read = recv(sockfd, tbuff, length, 0) );
 	memcpy(&tcph, tbuff, MICROTCP_HEADER_SIZE);
 	print_tcp_header(socket,&tcph);
@@ -576,7 +579,7 @@ receive2:
 		 * thus achieving better performance.
 		 */
 
-		goto receive2;
+		goto rflag0;
 	}
 
 	if ( tcph.control & CTRL_FIN ) {
@@ -626,10 +629,6 @@ receive2:
 
 	} while ( !frag );
 
-
-	/** TODO: Flow Control */
-	/** TODO: Packet reordering */
-	/** TODO: Acknowledgements */
 
 	return total_bytes_read;
 }
