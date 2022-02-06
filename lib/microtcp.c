@@ -433,7 +433,7 @@ send1:
 			_preapre_send_tcph(socket, &tcph, ( !fflag ) ? (fflag = FRAGMENT) : CTRL_XXX, (void *)(tmp), MICROTCP_MSS);
 			memcpy(tbuff, &tcph, MICROTCP_HEADER_SIZE);
 			memcpy(tbuff + MICROTCP_HEADER_SIZE, (void *)(tmp), MICROTCP_MSS);
-			
+
 			check( send(sockfd, tbuff, MICROTCP_MSS + MICROTCP_HEADER_SIZE, 0) );
 		}
 
@@ -460,6 +460,7 @@ sflag1:
 
 			LOG_DEBUG("s.state: %d, s.cwnd: %ld, s.ssthres: %ld\n",socket->state,socket->cwnd,socket->ssthresh);
 			LOG_DEBUG("%ld",ret);
+
 			if ( ret < 0 ) {
 
 				if ( errno == EAGAIN ) {
@@ -469,8 +470,6 @@ sflag1:
 					socket->state     = SLOW_START;
 
 					LOG_DEBUG("timeout-occured, retransmiting packet\n");
-
-					/** TODO: Fast Retransmit */
 
 					// check( ret );
 					// microtcp_send(socket,buffer,lengthcpy,flags);
@@ -499,18 +498,19 @@ sflag1:
 
 						tmp = (index != chunks - 1UL) ? MICROTCP_MSS : bytes_to_send;
 						buffer += (index - 1UL) * tmp;
-						// length -= 
-					}else if(dacks > 3UL){
-						socket->cwnd = socket->cwnd + MICROTCP_MSS;
+						// length -= 3MSS
 					}
+					else if ( dacks > 3UL )
+						socket->cwnd = socket->cwnd + MICROTCP_MSS;
 
 					goto sflag1;
 				}
-				else{
+				else {
+
 					socket->seq_number += (index != chunks - 1UL) ? MICROTCP_MSS : bytes_to_send;
 					dacks = 0UL;
 
-					if(socket->state==SLOW_START){
+					if ( socket->state == SLOW_START ) {
 						
 						socket->cwnd=socket->cwnd*2;//in SLOW_START increment cwnd exponentially
 						
@@ -519,7 +519,9 @@ sflag1:
 						}
 
 
-					}else{socket->cwnd+=MICROTCP_MSS;}//in CONG_AVOID increment cwnd additively
+					}
+					else
+						socket->cwnd+=MICROTCP_MSS;//in CONG_AVOID increment cwnd additively
 				}
 			}
 		}
