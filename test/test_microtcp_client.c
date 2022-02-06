@@ -36,8 +36,12 @@
 
 #define TEST_BYTES 2805
 
-int main(int argc, char **argv)
-{
+void send_file(FILE *fp, microtcp_sock_t sockfp);
+
+
+int main(int argc, char **argv) {
+    int flag = atoi(argv[3]);
+
     microtcp_sock_t csock;
     struct sockaddr_in addr;
     uint16_t port=atoi(argv[2]);
@@ -56,26 +60,37 @@ int main(int argc, char **argv)
 
     microtcp_connect(&csock,(struct sockaddr*)&addr,sizeof(addr));
 
-    int fd = open("test.txt", O_RDONLY);
+    if(flag == 1) {
+        
+        FILE* fp = fopen(argv[4], "r");
+        
+        // if ( fd  < 0 ) {
 
-    if ( fd  < 0 ) {
+        //     perror("open() failed");
+        //     exit(EXIT_FAILURE);
+        // }
 
-        perror("open() failed");
-        exit(EXIT_FAILURE);
+        if ( !(frag_test = malloc(TEST_BYTES + 1)) ) {
+
+            perror("malloc() failed");
+            exit(EXIT_FAILURE);
+        }
+
+        // read(fd, frag_test, TEST_BYTES);
+        // *(char *)(frag_test + TEST_BYTES) = 0;
+    
+        send_file(fp, csock);
+        
+        // check( microtcp_send(&csock, "Pousth Bisia!!!", 16UL, 0) );
+        // check( microtcp_send(&csock, "Papastamo GAmiesai!1!!1!", 25UL, 0) );
+        // check( microtcp_send(&csock, frag_test, TEST_BYTES, 0) );
     }
+    else if(flag == 2) {
 
-    if ( !(frag_test = malloc(TEST_BYTES + 1)) ) {
-
-        perror("malloc() failed");
-        exit(EXIT_FAILURE);
     }
+    else if(flag == 3) {
 
-    read(fd, frag_test, TEST_BYTES);
-    *(char *)(frag_test + TEST_BYTES) = 0;
-
-    check( microtcp_send(&csock, "Pousth Bisia!!!", 16UL, 0) );
-    check( microtcp_send(&csock, "Papastamo GAmiesai!1!!1!", 25UL, 0) );
-    check( microtcp_send(&csock, frag_test, TEST_BYTES, 0) );
+    }
 
     LOG_DEBUG("Shutting down the connection.\n");
     microtcp_shutdown(&csock,SHUTDOWN_CLIENT);
@@ -83,4 +98,14 @@ int main(int argc, char **argv)
     LOG_DEBUG("Connection has been shut down successfully!\n");
 
     return 0;
+}
+
+
+void send_file(FILE *fp, microtcp_sock_t sockfp) {
+    char data[1024] = {0};
+
+    while(fgets(data, 1024, fp) != NULL) {
+        microtcp_send(&sockfp, data, 1024, 0);
+    }
+    bzero(data, 1024);
 }
