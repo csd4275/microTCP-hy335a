@@ -416,7 +416,7 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 	_timeout(sockfd, TIOUT_ENABLE);
 
 	while ( length ) {
-
+send1:
 		tmp = MIN2(socket->cwnd, socket->sendbuflen);
 		bytes_to_send = MIN2(length, tmp);
 		chunks = bytes_to_send / MICROTCP_MSS;  // avoid IP-Fragmentation (break into fragments)
@@ -432,7 +432,7 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 			_preapre_send_tcph(socket, &tcph, ( !fflag ) ? (fflag = FRAGMENT) : CTRL_XXX, (void *)(tmp), MICROTCP_MSS);
 			memcpy(tbuff, &tcph, MICROTCP_HEADER_SIZE);
 			memcpy(tbuff + MICROTCP_HEADER_SIZE, (void *)(tmp), MICROTCP_MSS);
-
+			
 			check( send(sockfd, tbuff, MICROTCP_MSS + MICROTCP_HEADER_SIZE, 0) );
 		}
 
@@ -472,7 +472,9 @@ receive1:
 					/** TODO: Fast Retransmit */
 
 					// check( ret );
-					microtcp_send(socket,buffer,lengthcpy,flags);
+					// microtcp_send(socket,buffer,lengthcpy,flags);
+					length = lengthcpy;
+					goto send1;
 				}
 				else
 					check( ret );
@@ -559,6 +561,8 @@ ssize_t microtcp_recv(microtcp_sock_t * __restrict__ socket, void * __restrict__
 receive2:
 	check( total_bytes_read = recv(sockfd, tbuff, length, 0) );
 	memcpy(&tcph, tbuff, MICROTCP_HEADER_SIZE);
+	print_tcp_header(socket,&tcph);
+
 	_ntoh_recvd_tcph(tcph);
 
 	// Fast Retransmit
