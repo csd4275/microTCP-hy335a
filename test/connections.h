@@ -18,10 +18,11 @@ void server_check_main_input(int argc, char ** argv) {
 
 void client_check_main_input(int argc, char ** argv) {
 
-    if ( argc < 3 ) {
+    if ( argc < 4 ) {
 
         printf(STR_ERROR " invalid command syntax\n");
-        printf("./test_microtcp_client <server-ip> <port-number>\n");
+        printf("./test_microtcp_client <server-ip> <port-number> <flag> <file_name>\n");
+        printf("flag options:\n1 Transmit a big file\n2 Transmit with timeouts\n3 Transmit in wrong order\n");
         exit(EXIT_FAILURE);
     }
 }
