@@ -22,7 +22,7 @@ void client_check_main_input(int argc, char ** argv) {
 
         printf(STR_ERROR " invalid command syntax\n");
         printf("./test_microtcp_client <server-ip> <port-number> <flag> <file_name>\n");
-        printf("flag options:\n1 Transmit a big file\n2 Transmit with timeouts\n3 Transmit in wrong order\n");
+        printf("flag options:\n1 Transmit a big file\n2 Transmit in wrong order\n");
         exit(EXIT_FAILURE);
     }
 }
