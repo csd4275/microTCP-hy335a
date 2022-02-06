@@ -79,10 +79,7 @@ int main(int argc, char **argv) {
             // *(char *)(frag_test + TEST_BYTES) = 0;
         
             send_file(fp, csock);
-            
-            // check( microtcp_send(&csock, "Pousth Bisia!!!", 16UL, 0) );
-            // check( microtcp_send(&csock, "Papastamo GAmiesai!1!!1!", 25UL, 0) );
-            // check( microtcp_send(&csock, frag_test, TEST_BYTES, 0) );
+
             break;
         case 2 :
 
@@ -115,4 +112,10 @@ void send_file(FILE *fp, microtcp_sock_t sockfp) {
     microtcp_send(&sockfp, data, finfo.st_size, 0);
     
     bzero(data, finfo.st_size);
+
+    data[0] = '6';
+    data[1] = '9';
+    data[2] = 0;
+
+    microtcp_send(&sockfp, data, 3UL, 0);
 }

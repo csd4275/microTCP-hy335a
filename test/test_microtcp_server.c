@@ -36,9 +36,8 @@
 void server_check_main_input(int argc, char ** argv);
 
 int main(int argc, char ** argv) {
+
     int sockopt;
-    int optval;
-    int optsz;
 
     struct sockaddr_in addr;
     struct timeval tv;
@@ -68,10 +67,6 @@ int main(int argc, char ** argv) {
     else
         exit(EXIT_FAILURE);
 
-    optsz = sizeof(int);
-    check( getsockopt(ssock.sd, SOL_SOCKET, SO_RCVBUF, &optval, &optsz) );
-    printf("SO_RCVBUF = %d\n", optval);
-
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port        = htons(atoi(argv[1]));
     addr.sin_family      = AF_INET;
@@ -81,7 +76,7 @@ int main(int argc, char ** argv) {
     memset(buff, 0, 1500UL);
 
 
-    check( ret = microtcp_recv(&ssock, buff, 1500UL, 0) );
+    check( ret = microtcp_recv(&ssock, buff, 3000UL, 0) );
     printf("ret = %ld\n", ret);
     LOG_DEBUG("recv()ed payload [%ld] ---> %s\n", ret, buff);
     memset(buff, 0, ret);
@@ -92,16 +87,11 @@ int main(int argc, char ** argv) {
     LOG_DEBUG("recv()ed payload [%ld] ---> %s\n", ret, buff);
     memset(buff, 0, ret);
 
-    // [FIN,ACK]
+    // [FIN, ACK]
     check( ret = microtcp_recv(&ssock, buff, 1500UL, 0) );
     printf("ret = %ld\n", ret);
     LOG_DEBUG("recv()ed payload [%ld] ---> %s\n", ret, buff);
     memset(buff, 0, ret);
-
-    /* check( ret = microtcp_recv(&ssock, buff, 1500UL, 0) );
-    printf("ret = %ld\n", ret);
-    LOG_DEBUG("recv()ed payload [%ld] ---> %s\n", ret, buff);
-    memset(buff, 0, ret); */
 
     printf("Connection with host successfully closed!\n");
     return 0;

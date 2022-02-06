@@ -495,12 +495,12 @@ sflag1:
 
 						tmp = (index != chunks - 1UL) ? MICROTCP_MSS : bytes_to_send;
 						buffer += (index - 1UL) * tmp;
-						// length -= 3MSS
+						length = lengthcpy;
 					}
 					else if ( dacks > 3UL )
 						socket->cwnd = socket->cwnd + MICROTCP_MSS;
 
-					goto sflag1;
+					goto send1;
 				}
 				else {  // everything is normal
 
