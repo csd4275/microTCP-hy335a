@@ -40,8 +40,6 @@ void send_file(FILE *fp, microtcp_sock_t sockfp);
 
 
 int main(int argc, char **argv) {
-    int flag = atoi(argv[3]);
-
     microtcp_sock_t csock;
     struct sockaddr_in addr;
     uint16_t port=atoi(argv[2]);
@@ -51,6 +49,7 @@ int main(int argc, char **argv) {
 
 
     client_check_main_input(argc, argv);
+    int flag = atoi(argv[3]);
     csock = microtcp_socket(AF_INET, SOCK_DGRAM, 0);
 
     inet_pton(AF_INET, argv[1], &iaddr);
@@ -59,37 +58,41 @@ int main(int argc, char **argv) {
     addr.sin_family      = AF_INET;
 
     microtcp_connect(&csock,(struct sockaddr*)&addr,sizeof(addr));
-
-    if(flag == 1) {
+    FILE* fp;
+    switch(flag) {
+        case 1 :
+            fp = fopen(argv[4], "r");
         
-        FILE* fp = fopen(argv[4], "r");
+            // if ( fd  < 0 ) {
+
+            //     perror("open() failed");
+            //     exit(EXIT_FAILURE);
+            // }
+
+            // if ( !(frag_test = malloc(TEST_BYTES + 1)) ) {
+
+            //     perror("malloc() failed");
+            //     exit(EXIT_FAILURE);
+            // }
+
+            // read(fd, frag_test, TEST_BYTES);
+            // *(char *)(frag_test + TEST_BYTES) = 0;
         
-        // if ( fd  < 0 ) {
+            send_file(fp, csock);
+            
+            // check( microtcp_send(&csock, "Pousth Bisia!!!", 16UL, 0) );
+            // check( microtcp_send(&csock, "Papastamo GAmiesai!1!!1!", 25UL, 0) );
+            // check( microtcp_send(&csock, frag_test, TEST_BYTES, 0) );
+            break;
+        case 2 :
 
-        //     perror("open() failed");
-        //     exit(EXIT_FAILURE);
-        // }
+            break;
+        case 3 :
 
-        if ( !(frag_test = malloc(TEST_BYTES + 1)) ) {
+            break;
+        default :
 
-            perror("malloc() failed");
-            exit(EXIT_FAILURE);
-        }
-
-        // read(fd, frag_test, TEST_BYTES);
-        // *(char *)(frag_test + TEST_BYTES) = 0;
-    
-        send_file(fp, csock);
-        
-        // check( microtcp_send(&csock, "Pousth Bisia!!!", 16UL, 0) );
-        // check( microtcp_send(&csock, "Papastamo GAmiesai!1!!1!", 25UL, 0) );
-        // check( microtcp_send(&csock, frag_test, TEST_BYTES, 0) );
-    }
-    else if(flag == 2) {
-
-    }
-    else if(flag == 3) {
-
+            break;
     }
 
     LOG_DEBUG("Shutting down the connection.\n");
@@ -102,16 +105,14 @@ int main(int argc, char **argv) {
 
 
 void send_file(FILE *fp, microtcp_sock_t sockfp) {
-
-    char data[2805];
-
-    memset(data, 0, 2805);
-    read(fileno(fp), data, 2805);
-    microtcp_send(&sockfp, data, 2805, 0);
-
-    data[0] = '6';
-    data[1] = '9';
-    data[2] = 0;
-
-    microtcp_send(&sockfp, data, 3, 0);
+    
+    struct stat finfo;
+    fstat(fileno(fp), &finfo);  
+    
+    char data[finfo.st_size];
+    
+    fread(data, finfo.st_size, 1, fp);
+    microtcp_send(&sockfp, data, finfo.st_size, 0);
+    
+    bzero(data, finfo.st_size);
 }
