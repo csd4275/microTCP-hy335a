@@ -102,10 +102,16 @@ int main(int argc, char **argv) {
 
 
 void send_file(FILE *fp, microtcp_sock_t sockfp) {
-    char data[1024] = {0};
 
-    while(fgets(data, 1024, fp) != NULL) {
-        microtcp_send(&sockfp, data, 1024, 0);
-    }
-    bzero(data, 1024);
+    char data[2805];
+
+    memset(data, 0, 2805);
+    read(fileno(fp), data, 2805);
+    microtcp_send(&sockfp, data, 2805, 0);
+
+    data[0] = '6';
+    data[1] = '9';
+    data[2] = 0;
+
+    microtcp_send(&sockfp, data, 3, 0);
 }

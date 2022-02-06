@@ -43,6 +43,7 @@ int main(int argc, char ** argv) {
     struct sockaddr_in addr;
     struct timeval tv;
 
+    int64_t  ret;
     uint16_t port;
     uint8_t  buff[1500];
 
@@ -78,21 +79,29 @@ int main(int argc, char ** argv) {
     check( microtcp_bind(&ssock, (struct sockaddr *)(&addr), sizeof(addr)) );
     check( microtcp_accept(&ssock, (struct sockaddr *)(&addr), sizeof(addr)) );
     memset(buff, 0, 1500UL);
-    // sleep(4U);  // this line causes congestion
 
-    for (;;) {
 
-        int64_t ret;
+    check( ret = microtcp_recv(&ssock, buff, 1500UL, 0) );
+    printf("ret = %ld\n", ret);
+    LOG_DEBUG("recv()ed payload [%ld] ---> %s\n", ret, buff);
+    memset(buff, 0, ret);
 
-        check( ret = microtcp_recv(&ssock, buff, 1500UL, 0) );
-        printf("ret = %ld\n", ret);
-        usleep(250000U);
-        LOG_DEBUG("recv()ed payload [%ld] ---> %s\n", ret, buff);
-        memset(buff, 0, ret);
+    usleep(220000U);
+    check( ret = microtcp_recv(&ssock, buff, 1500UL, 0) );
+    printf("ret = %ld\n", ret);
+    LOG_DEBUG("recv()ed payload [%ld] ---> %s\n", ret, buff);
+    memset(buff, 0, ret);
 
-        // connection will close with an error, due to shutdown()
-        /** TODO: fix that with shutdown()... think() */
-    }
+    // [FIN,ACK]
+    check( ret = microtcp_recv(&ssock, buff, 1500UL, 0) );
+    printf("ret = %ld\n", ret);
+    LOG_DEBUG("recv()ed payload [%ld] ---> %s\n", ret, buff);
+    memset(buff, 0, ret);
+
+    /* check( ret = microtcp_recv(&ssock, buff, 1500UL, 0) );
+    printf("ret = %ld\n", ret);
+    LOG_DEBUG("recv()ed payload [%ld] ---> %s\n", ret, buff);
+    memset(buff, 0, ret); */
 
     printf("Connection with host successfully closed!\n");
     return 0;

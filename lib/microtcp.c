@@ -459,7 +459,6 @@ sflag1:
 			ret = recv(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0);
 
 			LOG_DEBUG("s.state: %d, s.cwnd: %ld, s.ssthres: %ld\n",socket->state,socket->cwnd,socket->ssthresh);
-			LOG_DEBUG("%ld",ret);
 
 			if ( ret < 0 ) {
 
@@ -471,8 +470,6 @@ sflag1:
 
 					LOG_DEBUG("timeout-occured, retransmiting packet\n");
 
-					// check( ret );
-					// microtcp_send(socket,buffer,lengthcpy,flags);
 					length = lengthcpy;
 					goto send1;
 				}
@@ -492,8 +489,8 @@ sflag1:
 
 					if ( ++dacks == 3UL ) {
 
-						socket->ssthresh = socket->cwnd / 2;
-						socket->cwnd     = socket->cwnd + 1;
+						socket->ssthresh   = socket->cwnd / 2;
+						socket->cwnd       = socket->ssthresh + 3 * MICROTCP_MSS;
 						socket->seq_number = tcph.ack_number;
 
 						tmp = (index != chunks - 1UL) ? MICROTCP_MSS : bytes_to_send;
@@ -505,23 +502,20 @@ sflag1:
 
 					goto sflag1;
 				}
-				else {
+				else {  // everything is normal
 
 					socket->seq_number += (index != chunks - 1UL) ? MICROTCP_MSS : bytes_to_send;
 					dacks = 0UL;
 
 					if ( socket->state == SLOW_START ) {
-						
-						socket->cwnd=socket->cwnd*2;//in SLOW_START increment cwnd exponentially
-						
-						if(socket->cwnd>=socket->ssthresh){//if SLOW_START & cwnd>=ssthresh -> CONG_AVOID
-							socket->state=CONG_AVOID;
-						}
 
+						socket->cwnd = socket->cwnd * 2;  // in SLOW_START increment cwnd exponentially
 
+						if ( socket->cwnd >= socket->ssthresh )  // if SLOW_START & cwnd>=ssthresh -> CONG_AVOID
+							socket->state = CONG_AVOID;
 					}
 					else
-						socket->cwnd+=MICROTCP_MSS;//in CONG_AVOID increment cwnd additively
+						socket->cwnd += MICROTCP_MSS;  // in CONG_AVOID increment cwnd additively
 				}
 			}
 		}
@@ -581,12 +575,13 @@ rflag0:
 
 		goto rflag0;
 	}
-
-	if ( tcph.control & CTRL_FIN ) {
+	else if ( tcph.control & CTRL_FIN ) {  // termination
 
 		microtcp_shutdown(socket, SHUTDOWN_SERVER);
 		return -1L;
 	}
+	else if ( tcph.seq_number < socket->ack_number )  // skip duplicate packets (during TIMEOUT)
+		goto rflag0;
 
 	if ( !tcph.data_len )  // zero length packet
 		return 0L;
