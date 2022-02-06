@@ -80,6 +80,7 @@ int main(int argc, char ** argv)
 
         check( ret = microtcp_recv(&ssock, buff, 1500UL, 0) );
         printf("ret = %ld\n", ret);
+        // sleep(1U);
         buff[ret] = 0;
         LOG_DEBUG("recv()ed payload [%ld] ---> %s\n", ret, buff);
         memset(buff, 0, ret);

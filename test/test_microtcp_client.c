@@ -56,9 +56,9 @@ int main(int argc, char **argv)
 
     microtcp_connect(&csock,(struct sockaddr*)&addr,sizeof(addr));
 
-    int fd = open("../test.txt", O_RDONLY);
+    int fd = open("test.txt", O_RDONLY);
 
-    if ( (fd = open("../test.txt", O_RDONLY)) < 0 ) {
+    if ( fd  < 0 ) {
 
         perror("open() failed");
         exit(EXIT_FAILURE);

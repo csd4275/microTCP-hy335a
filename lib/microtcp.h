@@ -97,8 +97,6 @@ typedef struct
   
   uint16_t sendbuflen;
   
-  uint8_t dupackcnt;
-
   size_t seq_number;             /**< Keep the state of the sequence number */
   size_t ack_number;             /**< Keep the state of the ack number */
   uint64_t packets_send;
