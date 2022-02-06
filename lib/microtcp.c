@@ -466,6 +466,9 @@ receive1:
 
 					LOG_DEBUG("timeout-occured, retransmiting packet\n");
 					LOG_DEBUG("s.state: %d, s.cwnd: %ld, s.ssthres: %ld\n",socket->state,socket->cwnd,socket->ssthresh);
+
+					/** TODO: Fast Retransmit */
+
 					check( ret );
 				}
 				else
@@ -479,22 +482,38 @@ receive1:
 
 					LOG_DEBUG("!ack < seq!");
 					
+					/** TODO: Fast Retransmit */
+
 					if ( ++dacks == 3UL ) {
 
-						/** TODO: Fast Retransmit */
-
-						socket->state      = CONG_AVOID;
+						socket->ssthresh = socket->cwnd / 2;
+						socket->cwnd     = socket->cwnd + 1;
 						socket->seq_number = tcph.ack_number;
 
 						tmp = (index != chunks - 1UL) ? MICROTCP_MSS : bytes_to_send;
 						buffer += (index - 1UL) * tmp;
 						// length -= 
+					}else if(dacks > 3UL){
+						socket->cwnd = socket->cwnd + MICROTCP_MSS;
 					}
 
 					goto receive1;
 				}
-				else
+				else{
 					socket->seq_number += (index != chunks - 1UL) ? MICROTCP_MSS : bytes_to_send;
+					dacks = 0UL;
+
+					if(socket->state==SLOW_START){
+						
+						socket->cwnd=socket->cwnd*2;//in SLOW_START increment cwnd exponentially
+						
+						if(socket->cwnd>=socket->ssthresh){//if SLOW_START & cwnd>=ssthresh -> CONG_AVOID
+							socket->state=CONG_AVOID;
+						}
+
+
+					}else{socket->cwnd+=MICROTCP_MSS;}//in CONG_AVOID increment cwnd additively
+				}
 			}
 		}
 	}
