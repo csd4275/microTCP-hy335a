@@ -79,10 +79,10 @@ int main(int argc, char **argv) {
         // read(fd, frag_test, TEST_BYTES);
         // *(char *)(frag_test + TEST_BYTES) = 0;
     
+        check( microtcp_send(&csock, "Pousth Bisia!!!", 16UL, 0) );
+        check( microtcp_send(&csock, "Papastamo GAmiesai!1!!1!", 25UL, 0) );
         send_file(fp, csock);
         
-        // check( microtcp_send(&csock, "Pousth Bisia!!!", 16UL, 0) );
-        // check( microtcp_send(&csock, "Papastamo GAmiesai!1!!1!", 25UL, 0) );
         // check( microtcp_send(&csock, frag_test, TEST_BYTES, 0) );
     }
     else if(flag == 2) {
