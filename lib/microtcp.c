@@ -384,6 +384,7 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 
 	int sockfd;
 	int fflag;  // fragments flag
+	size_t lengthcpy = length;
 
 	uint64_t bytes_to_send;
 	uint64_t chunks;
@@ -456,6 +457,8 @@ ssize_t microtcp_send(microtcp_sock_t * __restrict__ socket, const void * __rest
 receive1:
 			ret = recv(sockfd, &tcph, MICROTCP_HEADER_SIZE, 0);
 
+			LOG_DEBUG("s.state: %d, s.cwnd: %ld, s.ssthres: %ld\n",socket->state,socket->cwnd,socket->ssthresh);
+			LOG_DEBUG("%ld",ret);
 			if ( ret < 0 ) {
 
 				if ( errno == EAGAIN ) {
@@ -465,17 +468,18 @@ receive1:
 					socket->state     = SLOW_START;
 
 					LOG_DEBUG("timeout-occured, retransmiting packet\n");
-					LOG_DEBUG("s.state: %d, s.cwnd: %ld, s.ssthres: %ld\n",socket->state,socket->cwnd,socket->ssthresh);
 
 					/** TODO: Fast Retransmit */
 
-					check( ret );
+					// check( ret );
+					microtcp_send(socket,buffer,lengthcpy,flags);
 				}
 				else
 					check( ret );
 			}
 			else {
 
+				print_tcp_header(socket, &tcph);
 				_ntoh_recvd_tcph(tcph);
 
 				if ( tcph.ack_number < socket->seq_number ) {  // retransmit
