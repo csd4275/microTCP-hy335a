@@ -493,8 +493,8 @@ sflag1:
 						socket->cwnd       = socket->ssthresh + 3 * MICROTCP_MSS;
 						socket->seq_number = tcph.ack_number;
 
-						tmp = (index != chunks - 1UL) ? MICROTCP_MSS : bytes_to_send;
-						buffer += (index - 1UL) * tmp;
+						// tmp = (index != chunks - 1UL) ? MICROTCP_MSS : bytes_to_send;
+						// buffer += (index - 1UL) * tmp;
 						length = lengthcpy;
 					}
 					else if ( dacks > 3UL )
